@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark">
+                <h5 class="mb-0 fw-bold">📦 Inventario PT — Extracción de Existencias</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-0">
+                    Guarda y comprueba los queries de extracción de existencias de Producto Terminado.
+                    Cada query se ejecuta contra su origen: <strong>CEDIS 1-4 y NAVE 6</strong> usan la
+                    conexión PostgreSQL de Odoo; <strong>WMS 1-4</strong> usan sus propias bases de datos MySQL.
+                    Se guardan en la configuración y se prueban contra la base de datos al presionar el botón.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CONEXIONES WMS (MySQL) -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-secondary">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0 fw-bold">Conexiones WMS (MySQL / MariaDB)</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <div class="table-responsive">
+                    <table class="table table-sm table-dark table-bordered align-middle mb-3">
+                        <thead>
+                            <tr>
+                                <th>Origen</th>
+                                <th>Host</th>
+                                <th>Puerto</th>
+                                <th>Base de Datos</th>
+                                <th>Usuario</th>
+                                <th>Contraseña</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, w in pt_wms.items() %}
+                            <tr>
+                                <td><strong>{{ w.etiqueta }}</strong></td>
+                                <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary wms-field" data-wms="{{ key }}" data-field="host" value="{{ w.host }}"></td>
+                                <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary wms-field" data-wms="{{ key }}" data-field="port" value="{{ w.port }}"></td>
+                                <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary wms-field" data-wms="{{ key }}" data-field="database" value="{{ w.database }}"></td>
+                                <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary wms-field" data-wms="{{ key }}" data-field="user" value="{{ w.user }}"></td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" class="form-control bg-dark text-white border-secondary wms-field" data-wms="{{ key }}" data-field="password" value="{{ w.password }}">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="toggleWmsPass(this)">👁</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-gold" onclick="saveWmsConnections()">Guardar Conexiones WMS</button>
+                    <button class="btn btn-brand-blue" onclick="testWmsConnections()">Probar Todas las Conexiones WMS</button>
+                </div>
+                <div id="wms-conn-alert" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QUERIES PT -->
+<div class="row">
+    {% for key, q in pt_queries.items() %}
+    <div class="col-md-6">
+        <div class="card mb-4 {% if q.tipo == 'odoo' %}border-info{% else %}border-warning{% endif %}">
+            <div class="card-header d-flex justify-content-between align-items-center" style="{% if q.tipo == 'odoo' %}background-color: var(--brand-blue);{% else %}background-color: #4a3a05;{% endif %}">
+                <h6 class="mb-0 fw-bold">⚡ {{ q.etiqueta }}</h6>
+                <div>
+                    <span class="badge {% if q.tipo == 'odoo' %}bg-info{% else %}bg-warning text-dark{% endif %}">
+                        {{ 'Odoo (PostgreSQL)' if q.tipo == 'odoo' else 'WMS (MySQL)' }}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-2">
+                    {% if q.tipo == 'odoo' %}
+                        Se ejecuta contra la conexión Odoo principal.
+                    {% else %}
+                        {% set q_conn = q.get('conexion', key) %}
+                        Se ejecuta contra la base {{ pt_wms[q_conn].database if q_conn in pt_wms else '' }} (MySQL).
+                    {% endif %}
+                    {% if q.es_update %}
+                        <br><strong class="text-warning">⚠ Query de Modificación (UPDATE).</strong> Solo se validará su estructura, requiere los tags <code>{NUEVA_CANTIDAD}</code> y <code>{ID_LOTE}</code>.
+                    {% elif q.validacion == 'estructura' %}
+                        <br><strong class="text-warning">⚠ Solo se validará la estructura.</strong> Debe contener el tag <code>{NOMBRE_DE_LA_UBICACION}</code> (se sustituye por la ubicación al ejecutarlo).
+                    {% elif q.validacion == 'escritura' %}
+                        <br><strong class="text-danger">⚠ Query de Borrado (DELETE).</strong> Solo se validará su estructura, debe contener el tag <code>{NOMBRE_DE_LA_UBICACION}</code>.
+                    {% endif %}
+                </p>
+                <textarea class="form-control bg-dark text-white border-secondary mb-2 pt-query-input" data-key="{{ key }}" rows="6">{{ q.query }}</textarea>
+                <div class="d-grid">
+                    <button class="btn {% if q.tipo == 'odoo' %}btn-info text-dark{% else %}btn-warning text-dark{% endif %} fw-bold pt-save-test" data-key="{{ key }}" data-tipo="{{ q.tipo }}" data-update="{{ 'true' if (q.es_update or q.validacion == 'estructura' or q.validacion == 'escritura') else 'false' }}">
+                        {% if q.es_update or q.validacion == 'estructura' or q.validacion == 'escritura' %}
+                            💾 Validar y Guardar Query
+                        {% else %}
+                            💾 Guardar y Probar Query
+                        {% endif %}
+                    </button>
+                </div>
+                <div class="pt-result mt-2" id="pt-result-{{ key }}" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

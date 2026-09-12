@@ -1,0 +1,8 @@
+Flask
+pandas
+openpyxl
+reportlab
+psycopg2-binary
+pymysql
+SQLAlchemy
+Werkzeug

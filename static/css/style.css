@@ -1,0 +1,173 @@
+:root {
+    --brand-blue: #1A2930;
+    --brand-gold: #C5A059;
+    --brand-gold-hover: #E3B96A;
+    --bg-dark: #1E2327;
+    --card-bg: #2C3238;
+    --text-light: #E9ECEF;
+    --text-muted: #ADB5BD;
+    --border-color: #3B444C;
+}
+
+@keyframes af-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0.35; }
+}
+.blink {
+    animation: af-blink 1s step-end infinite;
+}
+
+/* Filas del modelo Análisis Final agregadas desde el Query Auditoría 1 */
+tr.af-qc-added td {
+    background-color: #fff3cd !important;
+    color: #212529 !important;
+}
+tr.af-qc-added td a,
+tr.af-qc-added td span,
+tr.af-qc-added td div {
+    color: #212529 !important;
+}
+tr.af-qc-added .text-secondary,
+tr.af-qc-added .text-muted {
+    color: #6c757d !important;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#table-pool-final thead th,
+#table-pool-final tbody td {
+    color: #FFFFFF !important;
+}
+
+.navbar {
+    background-color: var(--brand-blue) !important;
+    border-bottom: 2px solid var(--brand-gold);
+    margin-bottom: 30px;
+}
+
+.navbar-brand {
+    color: var(--brand-gold) !important;
+    font-weight: 600;
+}
+
+.nav-link {
+    color: var(--text-light) !important;
+}
+
+.nav-link.active {
+    color: var(--brand-gold) !important;
+    font-weight: 500;
+}
+
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: var(--brand-blue) !important;
+    color: var(--brand-gold) !important;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+}
+
+/* Formularios Oscuros */
+.form-control, .form-select {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-light);
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #242A30;
+    color: var(--text-light);
+    border-color: var(--brand-gold);
+    box-shadow: 0 0 0 0.25rem rgba(197, 160, 89, 0.25);
+}
+
+.form-control::placeholder {
+    color: #6C757D;
+}
+
+/* Botones Personalizados */
+.btn-brand-gold {
+    background-color: var(--brand-gold);
+    color: #111;
+    border: none;
+    font-weight: 500;
+}
+
+.btn-brand-gold:hover {
+    background-color: var(--brand-gold-hover);
+    color: #000;
+}
+
+.btn-outline-gold {
+    background-color: transparent;
+    color: var(--brand-gold);
+    border: 1px solid var(--brand-gold);
+}
+
+.btn-outline-gold:hover {
+    background-color: var(--brand-gold);
+    color: #111;
+}
+
+.btn-brand-blue {
+    background-color: var(--brand-blue);
+    color: var(--text-light);
+    border: 1px solid var(--brand-gold);
+}
+
+.btn-brand-blue:hover {
+    background-color: #263B45;
+    color: var(--brand-gold);
+}
+
+label {
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+}
+
+.console-output {
+    background-color: #0D1117;
+    color: #D4AF37; /* Dorado para los logs */
+    font-family: 'Courier New', Courier, monospace;
+    height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+}
+
+.diff-match {
+    background-color: rgba(40, 167, 69, 0.2) !important;
+    color: #8FD19E;
+}
+
+.diff-missing-db {
+    background-color: rgba(220, 53, 69, 0.2) !important;
+    color: #F8D7DA;
+}
+
+.table {
+    color: var(--text-light);
+}
+
+.table th {
+    background-color: var(--brand-blue);
+    color: var(--brand-gold);
+    border-color: var(--border-color);
+}
+
+.table td, .table th {
+    border-color: var(--border-color);
+}
+

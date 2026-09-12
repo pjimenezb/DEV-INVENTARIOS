@@ -1,0 +1,32 @@
+# Credenciales / configuración sensible
+config.json
+
+# Entorno virtual y cachés
+venv/
+__pycache__/
+.DS_Store
+*.pyc
+
+# Logs
+*.log
+
+# Datos locales (SQLite / backups)
+marbetes_log.db
+backups/
+
+# Datos operativos generados
+pdfs/
+uploads/
+analisisfinal/
+archivocarga*/
+archivobaja*/
+
+# Pruebas y artefactos de desarrollo
+*test/
+test_*.py
+test_otra.csv
+artefactos/
+
+# Respaldos / parches locales
+core/local_db_sqlite_legacy.py
+core/local_db.py_patch

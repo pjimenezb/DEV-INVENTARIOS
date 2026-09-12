@@ -1,0 +1,318 @@
+{
+  "local_db": {
+    "host": "",
+    "port": 0,
+    "user": "",
+    "password": "",
+    "database": ""
+  },
+  "db": {
+    "host": "",
+    "port": 0,
+    "user": "",
+    "password": "",
+    "database": ""
+  },
+  "query": "WITH claves AS (\n    SELECT\n        n.orden::integer AS orden,\n        n.clave\n    FROM unnest(ARRAY[{NPs}]::text[]) WITH ORDINALITY AS n(clave, orden)\n),\nproductos AS (\n    SELECT\n        c.orden,\n        c.clave AS clave_solicitada,\n        pp.id AS product_id,\n        pp.default_code AS clave,\n        pt.id AS product_tmpl_id,\n        pt.name AS descripcion,\n        uom.name AS unidad,\n        NULLIF(pt.material_type, '') AS empaque_producto,\n        pt.udv AS udv_producto\n    FROM claves c\n    LEFT JOIN product_product pp\n        ON pp.default_code = c.clave\n       AND pp.default_code IN ({NPs})\n    LEFT JOIN product_template pt\n        ON pt.id = pp.product_tmpl_id\n    LEFT JOIN product_uom uom\n        ON uom.id = pt.uom_id\n),\nempaques_catalogo AS (\n    SELECT\n        ppack.product_tmpl_id,\n        string_agg(\n            concat_ws(\n                ' ',\n                NULLIF(ppack.name, ''),\n                CASE\n                    WHEN ppack.qty IS NOT NULL\n                        THEN 'x ' || trim(to_char(ppack.qty, 'FM999999990.########'))\n                END\n            ),\n            ', ' ORDER BY ppack.sequence, ppack.name\n        ) AS empaque_catalogo\n    FROM product_packaging ppack\n    GROUP BY\n        ppack.product_tmpl_id\n),\nalmacenes AS (\n    SELECT\n        sw.id AS warehouse_id,\n        sw.code AS almacen_codigo,\n        sw.name AS almacen_nombre,\n        sl.parent_left,\n        sl.parent_right\n    FROM stock_warehouse sw\n    JOIN stock_location sl\n        ON sl.id = sw.lot_stock_id\n),\nexistencias AS (\n    SELECT\n        sq.product_id,\n        COALESCE(a.almacen_codigo, a.almacen_nombre, split_part(sl.complete_name, '/', 1), sl.name) AS almacen,\n        sl.complete_name AS ubicacion,\n        COALESCE(qpack.name, pack.name) AS empaque_existencia,\n        sum(sq.qty) AS cantidad,\n        sum(COALESCE(sq.udv_total, 0)) AS udv_total,\n        sum(COALESCE(sq.ua_total, 0)) AS ua_total\n    FROM stock_quant sq\n    JOIN stock_location sl\n        ON sl.id = sq.location_id\n    LEFT JOIN almacenes a\n        ON sl.parent_left >= a.parent_left\n       AND sl.parent_right <= a.parent_right\n    LEFT JOIN product_packaging qpack\n        ON qpack.id = sq.packaging_type_id\n    LEFT JOIN stock_quant_package sqpack\n        ON sqpack.id = sq.package_id\n    LEFT JOIN product_packaging pack\n        ON pack.id = sqpack.packaging_id\n    WHERE sl.usage = 'internal'\n    GROUP BY\n        sq.product_id,\n        COALESCE(a.almacen_codigo, a.almacen_nombre, split_part(sl.complete_name, '/', 1), sl.name),\n        sl.complete_name,\n        COALESCE(qpack.name, pack.name)\n    HAVING sum(sq.qty) <> 0\n)\nSELECT\n    p.orden,\n    p.clave_solicitada,\n    CASE\n        WHEN p.product_id IS NULL THEN 'NO ENCONTRADO'\n        WHEN e.product_id IS NULL THEN 'SIN EXISTENCIA INTERNA'\n        ELSE 'OK'\n    END AS estado,\n    p.clave,\n    p.descripcion,\n    p.unidad,\n    COALESCE(p.empaque_producto, e.empaque_existencia, ec.empaque_catalogo, '') AS empaque,\n    p.udv_producto,\n    e.almacen,\n    e.ubicacion,\n    e.cantidad,\n    e.udv_total,\n    e.ua_total,\n    ''::text AS contado_por\nFROM productos p\nLEFT JOIN empaques_catalogo ec\n    ON ec.product_tmpl_id = p.product_tmpl_id\nLEFT JOIN existencias e\n    ON e.product_id = p.product_id\nORDER BY\n    p.orden,\n    e.almacen NULLS LAST,\n    e.ubicacion NULLS LAST,\n    empaque NULLS LAST;",
+  "pdf_coords": {
+    "base_y": 98,
+    "global_row_offset_y": 272,
+    "ajuste_m1_y": 30,
+    "ajuste_m2_y": 22,
+    "ajuste_m3_y": 15,
+    "font_size": 10,
+    "col1": {
+      "x": 30
+    },
+    "col2": {
+      "x": 101
+    },
+    "col3": {
+      "x_offset_from_col2": 256
+    },
+    "elements": {
+      "col1_np": {
+        "enabled": true,
+        "x_add": -22,
+        "y_offset": -46,
+        "font_size_add": 32
+      },
+      "col1_folio": {
+        "enabled": true,
+        "x_add": -20,
+        "y_offset": -11,
+        "font_size_add": 23
+      },
+      "titulo": {
+        "enabled": false,
+        "x_add": 0,
+        "y_offset": 113,
+        "font_size_add": 1
+      },
+      "fecha": {
+        "enabled": true,
+        "x_add": 157,
+        "y_offset": 116,
+        "font_size_add": -2
+      },
+      "folio_horizontal": {
+        "enabled": true,
+        "x_add": 177,
+        "y_offset": 102,
+        "font_size_add": 8
+      },
+      "lbl_clave": {
+        "enabled": false,
+        "x_add": 93,
+        "y_offset": 75,
+        "font_size_add": 8
+      },
+      "rect_clave": {
+        "enabled": false,
+        "x_add": 4,
+        "y_offset": 10,
+        "w": 235,
+        "h": 55,
+        "font_size_add": 0
+      },
+      "val_clave": {
+        "enabled": true,
+        "x_add": 29,
+        "y_offset": 31,
+        "font_size_add": 22
+      },
+      "lbl_unidad": {
+        "enabled": false,
+        "x_add": 28,
+        "y_offset": -1,
+        "font_size_add": 0
+      },
+      "rect_unidad": {
+        "enabled": false,
+        "x_add": 1,
+        "y_offset": -38,
+        "w": 93,
+        "h": 32,
+        "font_size_add": 0
+      },
+      "val_unidad": {
+        "enabled": true,
+        "x_add": 30,
+        "y_offset": -25,
+        "font_size_add": 2
+      },
+      "lbl_empaque": {
+        "enabled": false,
+        "x_add": 111,
+        "y_offset": -1,
+        "font_size_add": 0
+      },
+      "rect_empaque": {
+        "enabled": false,
+        "x_add": 98,
+        "y_offset": -38,
+        "w": 71,
+        "h": 32,
+        "font_size_add": 0
+      },
+      "val_empaque": {
+        "enabled": true,
+        "x_add": 121,
+        "y_offset": -25,
+        "font_size_add": 1
+      },
+      "lbl_almacen": {
+        "enabled": false,
+        "x_add": 186,
+        "y_offset": -1,
+        "font_size_add": 0
+      },
+      "rect_almacen": {
+        "enabled": false,
+        "x_add": 173,
+        "y_offset": -39,
+        "w": 71,
+        "h": 32,
+        "font_size_add": 0
+      },
+      "val_almacen": {
+        "enabled": true,
+        "x_add": 179,
+        "y_offset": -25,
+        "font_size_add": 0
+      },
+      "lbl_cantidad": {
+        "enabled": false,
+        "x_add": 45,
+        "y_offset": -50,
+        "font_size_add": 0
+      },
+      "rect_cantidad": {
+        "enabled": false,
+        "x_add": 1,
+        "y_offset": -119,
+        "w": 122,
+        "h": 64,
+        "font_size_add": 0
+      },
+      "val_cantidad": {
+        "enabled": false,
+        "x_add": 60,
+        "y_offset": -92,
+        "font_size_add": 8
+      },
+      "lbl_contado": {
+        "enabled": false,
+        "x_add": 152,
+        "y_offset": -50,
+        "font_size_add": 0
+      },
+      "rect_contado": {
+        "enabled": false,
+        "x_add": 122,
+        "y_offset": -119,
+        "w": 122,
+        "h": 64,
+        "font_size_add": 0
+      },
+      "val_contado": {
+        "enabled": false,
+        "x_add": 163,
+        "y_offset": -92,
+        "font_size_add": 5
+      }
+    }
+  },
+  "printer": {
+    "name": "_10_150_0_149",
+    "batch_size": 15,
+    "sleep_time": 20
+  },
+  "data_mapping": {
+    "clave": "db",
+    "unidad": "db",
+    "empaque": "db",
+    "almacen": "excel",
+    "cantidad": "db",
+    "contado_por": "sistema",
+    "descripcion": "db"
+  },
+  "query_existencias": "WITH ubicaciones_objetivo AS (\n    SELECT *\n    FROM (VALUES\n        (1, 'Physical Locations/AMP/Stock/B&A'),\n        (2, 'Physical Locations/AMP/Stock/EPTs'),\n        (3, 'Physical Locations/AMP/Stock/Insumos'),\n        (4, 'Physical Locations/AMP/Stock/Prop. Cte.')\n    ) AS u(orden, almacen)\n),\nobjetivos_normalizados AS (\n    SELECT\n        orden,\n        almacen,\n        regexp_replace(almacen, '[[:space:]]*/[[:space:]]*', '/', 'g') AS almacen_normalizado\n    FROM ubicaciones_objetivo\n),\nquants_actuales AS (\n    SELECT\n        sq.product_id,\n        sq.qty,\n        loc.complete_name AS ubicacion_completa,\n        regexp_replace(loc.complete_name, '[[:space:]]*/[[:space:]]*', '/', 'g') AS ubicacion_normalizada\n    FROM stock_quant sq\n    JOIN stock_location loc\n        ON loc.id = sq.location_id\n    WHERE loc.usage = 'internal'\n      AND sq.qty <> 0\n),\nubicaciones_filtradas AS (\n    SELECT\n        qa.product_id,\n        qa.qty,\n        obj.orden AS almacen_orden,\n        obj.almacen,\n        qa.ubicacion_completa\n    FROM quants_actuales qa\n    JOIN objetivos_normalizados obj\n        ON qa.ubicacion_normalizada = obj.almacen_normalizado\n        OR qa.ubicacion_normalizada ILIKE obj.almacen_normalizado || '/%'\n),\nproducto_ubicacion AS (\n    SELECT\n        product_id,\n        almacen_orden,\n        almacen,\n        ubicacion_completa,\n        sum(qty) AS cantidad_stock_ubicacion\n    FROM ubicaciones_filtradas\n    GROUP BY\n        product_id,\n        almacen_orden,\n        almacen,\n        ubicacion_completa\n    HAVING sum(qty) <> 0\n),\nalmacenes_por_producto AS (\n    SELECT\n        product_id,\n        array_agg(almacen ORDER BY almacen_orden, almacen) AS almacenes\n    FROM (\n        SELECT DISTINCT\n            product_id,\n            almacen_orden,\n            almacen\n        FROM producto_ubicacion\n    ) a\n    GROUP BY\n        product_id\n)\nSELECT\n    pp.default_code AS \"Materia Prima\",\n    pt.name AS \"Descripción\",\n    uom.name AS \"Unidad\",\n    NULLIF(pt.material_type, '') AS \"Empaque\",\n    app.almacenes AS \"Almacén\",\n    array_agg(pu.ubicacion_completa ORDER BY pu.almacen_orden, pu.ubicacion_completa) AS \"Ubicación Completa\",\n    sum(pu.cantidad_stock_ubicacion) AS \"Cantidad Stock\",\n    ''::text AS \"Contado Por\"\nFROM producto_ubicacion pu\nJOIN product_product pp\n    ON pp.id = pu.product_id\nJOIN product_template pt\n    ON pt.id = pp.product_tmpl_id\nLEFT JOIN product_uom uom\n    ON uom.id = pt.uom_id\nLEFT JOIN almacenes_por_producto app\n    ON app.product_id = pu.product_id\nGROUP BY\n    pp.default_code,\n    pt.name,\n    uom.name,\n    NULLIF(pt.material_type, ''),\n    app.almacenes\nORDER BY\n    min(pu.almacen_orden),\n    pp.default_code;\n",
+  "query_pool": "WITH nps AS (\n    SELECT\n        x.orden::integer AS orden,\n        x.default_code\n    FROM unnest(ARRAY[\n        {NPs}\n    ]::text[]) WITH ORDINALITY AS x(default_code, orden)\n),\nproductos AS (\n    SELECT\n        n.orden,\n        n.default_code AS default_code_solicitado,\n        pp.id AS product_id,\n        pp.default_code\n    FROM nps n\n    LEFT JOIN product_product pp\n        ON upper(pp.default_code) = upper(n.default_code)\n),\nrecepciones_compra AS (\n    SELECT\n        p.orden,\n        p.default_code_solicitado,\n        p.default_code,\n        po.id AS purchase_order_id,\n        loc_dest.complete_name AS ubicacion_completa,\n        dense_rank() OVER (\n            PARTITION BY p.default_code_solicitado\n            ORDER BY\n                COALESCE(po.date_approve, po.date_order, po.create_date) DESC NULLS LAST,\n                po.id DESC\n        ) AS rank_ultima_oc\n    FROM productos p\n    JOIN purchase_order_line pol\n        ON pol.product_id = p.product_id\n    JOIN purchase_order po\n        ON po.id = pol.order_id\n       AND po.state <> 'cancel'\n    JOIN stock_move sm\n        ON sm.purchase_line_id = pol.id\n       AND sm.product_id = p.product_id\n       AND sm.state = 'done'\n    JOIN stock_picking sp\n        ON sp.id = sm.picking_id\n       AND sp.state = 'done'\n    JOIN stock_picking_type spt\n        ON spt.id = sp.picking_type_id\n       AND spt.code = 'incoming'\n    JOIN stock_location loc_dest\n        ON loc_dest.id = sm.location_dest_id\n)\nSELECT\n    p.default_code_solicitado AS \"Default Code\",\n    string_agg(DISTINCT r.ubicacion_completa, ', ' ORDER BY r.ubicacion_completa) AS \"Nombre Completo Ubicacion\"\nFROM productos p\nLEFT JOIN recepciones_compra r\n    ON r.default_code_solicitado = p.default_code_solicitado\n   AND r.rank_ultima_oc = 1\nGROUP BY\n    p.orden,\n    p.default_code_solicitado\nORDER BY\n    p.orden;",
+  "query_epts": "with general_ as (\nselect\n                            inv.default_code,\n                            max(inv.product_name) product_name,\n                            inv.material_type,\n                            inv.code,\n                            max(inv.id_location) id_location,\n                            max(inv.location_full) location_full,\n                            max(inv.location_key) location_key,\n                            sum(inv.qty) qty,\n                            sum(inv.costo) costo,\n                            sum(inv.liters) liters,\n                            max(inv.uom) uom,\n                            lote\n                        from\n                            (\n                            select\n                                pt.default_code as default_code,\n                                pt.name as product_name,\n                                case\n                                    when substring(pt.default_code,1,3) = 'EPT' then\n                                        'EPT'\n                                    when pt.material_type isnull then\n                                        'NO DEFINIDO'\n                                    else\n                                        pt.material_type\n                                end material_type,\n                                aa.code,\n                                sl.id id_location,\n                                sl.complete_name location_full,\n                                sliden.name as location_key,\n                                qty as qty,\n                                costo,\n                                to_char(liters, 'FM999999990.00') :: float as liters,\n                                uom.name as uom,\n                                sq.lote\n                            from\n                                (\n                                select\n                                    SUM(sq.qty) as qty,\n                                    SUM(sq.qty * sq.cost) costo,\n                                    SUM(sq.udv_total) as liters,\n                                    sq.product_id,\n                                    sq.location_id,\n                                    spl.name as lote\n                                from\n                                    stock_quant sq\n                                left join stock_production_lot spl on sq.lot_id = spl.id\n                                group by\n                                    sq.location_id,\n                                    sq.product_id,\n                                    spl.name\n                                order by\n                                    location_id asc,\n                                    product_id asc) as sq\n                            inner join\n                             stock_location sl\n                             on\n                                sl.id = sq.location_id\n                            left join account_account aa on\n                                sl.valuation_in_account_id = aa.id\n                            inner join\n                             product_product pp\n                             on\n                                sq.product_id = pp.id\n                            inner join\n                             product_template pt\n                             on\n                                pp.product_tmpl_id = pt.id\n                            inner join\n                             product_uom uom\n                             on\n                                pt.uom_id = uom.id\n                            left join\n                             stock_location sliden\n                             on\n                                sliden.id = sl.location_id\n                        )inv\n                        where\n                            inv.location_key not in('Virtual Locations', 'Partner Locations', 'INDIR', 'MKT')\n                            and inv.id_location  in (172,1230,1039,1231)\n                        group by\n                            inv.material_type, inv.code, inv.default_code, lote)\n               select * from general_  where default_code like any( array['EPT%', 'MES%'])     \n              ;",
+  "pt_queries": {
+    "cedis1_odoo": {
+      "tipo": "odoo",
+      "etiqueta": "CEDIS 1 (Odoo)",
+      "query": "select\n        stock.almacen,\n        c4.name familia,\n        pt.udv as udv,\n        pt.default_code clave,\n        pt.name descripcion,\n        pu.name udm,\n        package_type presentacion,\n        basico.x_name tipo_basico,\n        xs.x_name clas_servicio,\n        to_char(stock.inventario,\n        'FM999999990.00') :: float existencia,\n        to_char(pt.udv * stock.inventario,\n        'FM999999990.00') :: float litros,\n        pp.id,\n        pt.platform_pieces as piezas_x_tarima\n    from\n        product_product pp\n    inner join\n    (\n        select\n            product_id as pid,\n            sum(qty) as inventario,\n            sl.complete_name as almacen\n        from\n            stock_quant\n        inner join stock_location sl on\n            sl.id = stock_quant.location_id\n        where\n            (sl.complete_name like '%/APT/Stock%'\n                or sl.complete_name like '%/APT/Existencias%')\n        group by\n            product_id,\n            sl.complete_name \n            )        \n            stock on\n        stock.pid = pp.id\n    left join product_template pt on\n        pp.product_tmpl_id = pt.id\n    left join product_uom pu on\n        pt.uom_id = pu.id\n    left join product_category c1 on\n        pt.categ_id = c1.id\n    left join product_category c2 on\n        c1.parent_id = c2.id\n    left join product_category c3 on\n        c2.parent_id = c3.id\n    left join product_category c4 on\n        c3.parent_id = c4.id\n    left join x_tipo_material basico on\n        pt.x_nivel_calidad = basico.id\n    left join x_servicio xs on\n        pt.x_servicio = xs.id\nwhere almacen ='Physical Locations/APT/Stock/Cedis I'\n    order by\n        familia,\n        udm,\n        existencia;"
+    },
+    "cedis2_odoo": {
+      "tipo": "odoo",
+      "etiqueta": "CEDIS 2 (Odoo)",
+      "query": ""
+    },
+    "cedis3_odoo": {
+      "tipo": "odoo",
+      "etiqueta": "CEDIS 3 (Odoo)",
+      "query": ""
+    },
+    "cedis4_odoo": {
+      "tipo": "odoo",
+      "etiqueta": "CEDIS 4 (Odoo)",
+      "query": ""
+    },
+    "nave6_odoo": {
+      "tipo": "odoo",
+      "etiqueta": "NAVE 6 (Odoo)",
+      "query": ""
+    },
+    "wms1": {
+      "tipo": "wms",
+      "etiqueta": "WMS 1 (CEDIS 1)",
+      "query": "SELECT\n    u.id AS ubicacion,\n    platform,\n    ul.id AS lote,\n    NombreUbicacion,\n    producto,\n    cantidad,\n    pieces AS ua,\n    ROUND(cantidad / pieces, 2) AS uaq,\n    date_format(fecha_lote, \"%d/%m/%Y %H:%i\") AS fecha_lote,\n    product_name,\n    uom,\n    lote_serie,\n    u.EstadoUbicacion, \n    udv\nFROM\n    ubicaciones u\nleft join \n    ubicacionlotes ul on\n    u.id = ul.idUbicacion\nORDER BY\n    NombreUbicacion;"
+    },
+    "wms2": {
+      "tipo": "wms",
+      "etiqueta": "WMS 2 (CEDIS 2)",
+      "query": "SELECT\n    u.id AS ubicacion,\n    platform,\n    ul.id AS lote,\n    NombreUbicacion,\n    producto,\n    cantidad,\n    pieces AS ua,\n    ROUND(cantidad / pieces, 2) AS uaq,\n    date_format(fecha_lote, \"%d/%m/%Y %H:%i\") AS fecha_lote,\n    product_name,\n    uom,\n    lote_serie,\n    u.EstadoUbicacion, \n    udv\nFROM\n    ubicaciones u\nleft join \n    ubicacionlotes ul on\n    u.id = ul.idUbicacion\nORDER BY\n    NombreUbicacion;"
+    },
+    "wms3": {
+      "tipo": "wms",
+      "etiqueta": "WMS 3 (CEDIS 3)",
+      "query": "SELECT\n    u.id AS ubicacion,\n    platform,\n    ul.id AS lote,\n    NombreUbicacion,\n    producto,\n    cantidad,\n    pieces AS ua,\n    ROUND(cantidad / pieces, 2) AS uaq,\n    date_format(fecha_lote, \"%d/%m/%Y %H:%i\") AS fecha_lote,\n    product_name,\n    uom,\n    lote_serie,\n    u.EstadoUbicacion,\n    udv\nFROM\n    ubicaciones u\nleft join \n    ubicacionlotes ul on\n    u.id = ul.idUbicacion\nORDER BY\n    NombreUbicacion;"
+    },
+    "wms4": {
+      "tipo": "wms",
+      "etiqueta": "WMS 4 (CEDIS 4)",
+      "query": "SELECT\n    u.id AS ubicacion,\n    platform,\n    ul.id AS lote,\n    NombreUbicacion,\n    producto,\n    cantidad,\n    pieces AS ua,\n    ROUND(cantidad / pieces, 2) AS uaq,\n    date_format(fecha_lote, \"%d/%m/%Y %H:%i\") AS fecha_lote,\n    product_name,\n    uom,\n    lote_serie,\n    u.EstadoUbicacion, \n    udv\nFROM\n    ubicaciones u\nleft join \n    ubicacionlotes ul on\n    u.id = ul.idUbicacion\nORDER BY\n    NombreUbicacion;"
+    },
+    "actualizacion_datos": {
+      "tipo": "odoo",
+      "etiqueta": "Actualización de Datos (Odoo)",
+      "query": "select\n    pt.default_code clave,\n    pt.name descripcion,\n    c4.name familia,\n    pt.udv as udv,\n    pu.name udm,\n    package_type presentacion,\n    basico.x_name tipo_basico,\n    xs.x_name clas_servicio,\n    pt.platform_pieces as piezas_x_tarima\nfrom product_product pp\nleft join product_template pt on pp.product_tmpl_id = pt.id\nleft join product_uom pu on pt.uom_id = pu.id\nleft join product_category c1 on pt.categ_id = c1.id\nleft join product_category c2 on c1.parent_id = c2.id\nleft join product_category c3 on c2.parent_id = c3.id\nleft join product_category c4 on c3.parent_id = c4.id\nleft join x_tipo_material basico on pt.x_nivel_calidad = basico.id\nleft join x_servicio xs on pt.x_servicio = xs.id\nwhere pp.default_code in ({NP})"
+    },
+    "actualizacion_directa_wms1": {
+      "tipo": "wms",
+      "etiqueta": "Actualización Directa WMS 1",
+      "conexion": "wms1",
+      "query": "UPDATE ubicacionlotes ul\nSET ul.cantidad = {NUEVA_CANTIDAD}\nWHERE ul.id = {ID_LOTE};",
+      "es_update": true
+    },
+    "wms1_info_ubicacion_rack": {
+      "tipo": "wms",
+      "etiqueta": "OBTENER INFO UBICACIÓN RACK",
+      "conexion": "wms1",
+      "validacion": "estructura",
+      "placeholders": [
+        "{NOMBRE_DE_LA_UBICACION}"
+      ],
+      "query": "SELECT\n    u.id AS ubicacion,\n    platform,\n    ul.id AS lote,\n    NombreUbicacion,\n    producto,\n    cantidad,\n    pieces AS ua,\n    ROUND(cantidad / NULLIF(pieces, 0), 2) AS uaq,\n    date_format(fecha_lote, \"%d/%m/%Y %H:%i\") AS fecha_lote,\n    product_name,\n    uom,\n    lote_serie,\n    u.EstadoUbicacion,\n    udv\nFROM\n    ubicaciones u\nleft join\n    ubicacionlotes ul on\n    u.id = ul.idUbicacion\nWHERE\n    u.NombreUbicacion = '{NOMBRE_DE_LA_UBICACION}'\nORDER BY\n    NombreUbicacion,\n    producto;"
+    },
+    "vaciar_ubicacion_wms1": {
+      "tipo": "wms",
+      "etiqueta": "Vaciar Ubicación WMS 1",
+      "conexion": "wms1",
+      "es_delete": true,
+      "validacion": "escritura",
+      "placeholders": [
+        "{NOMBRE_DE_LA_UBICACION}"
+      ],
+      "query": "DELETE ul FROM ubicacionlotes ul\nINNER JOIN ubicaciones u ON u.id = ul.idUbicacion\nWHERE u.NombreUbicacion = '{NOMBRE_DE_LA_UBICACION}';"
+    }
+  },
+  "pt_wms": {
+    "wms1": {
+      "host": "",
+      "port": 0,
+      "user": "",
+      "password": "",
+      "database": "",
+      "etiqueta": "WMS 1 (CEDIS 1)"
+    },
+    "wms2": {
+      "host": "",
+      "port": 0,
+      "user": "",
+      "password": "",
+      "database": "",
+      "etiqueta": "WMS 2 (CEDIS 2)"
+    },
+    "wms3": {
+      "host": "",
+      "port": 0,
+      "user": "",
+      "password": "",
+      "database": "",
+      "etiqueta": "WMS 3 (CEDIS 3)"
+    },
+    "wms4": {
+      "host": "",
+      "port": 0,
+      "user": "",
+      "password": "",
+      "database": "",
+      "etiqueta": "WMS 4 (CEDIS 4)"
+    }
+  },
+  "query_auditoria_1": "WITH ubicaciones_objetivo AS (\n    SELECT *\n    FROM (VALUES\n        (1, 'Physical Locations/AMP/Stock/B&A'),\n        (2, 'Physical Locations/AMP/Stock/EPTs'),\n        (3, 'Physical Locations/AMP/Stock/Insumos'),\n        (4, 'Physical Locations/AMP/Stock/Prop. Cte.')\n    ) AS u(orden, almacen)\n),\nobjetivos_normalizados AS (\n    SELECT\n        orden,\n        almacen,\n        regexp_replace(almacen, '[[:space:]]*/[[:space:]]*', '/', 'g') AS almacen_normalizado\n    FROM ubicaciones_objetivo\n),\nquants_actuales AS (\n    SELECT\n        sq.product_id,\n        sq.qty,\n        loc.complete_name AS ubicacion_completa,\n        regexp_replace(loc.complete_name, '[[:space:]]*/[[:space:]]*', '/', 'g') AS ubicacion_normalizada\n    FROM stock_quant sq\n    JOIN stock_location loc\n        ON loc.id = sq.location_id\n    WHERE loc.usage = 'internal'\n      AND sq.qty <> 0\n),\nubicaciones_filtradas AS (\n    SELECT\n        qa.product_id,\n        qa.qty,\n        obj.orden AS almacen_orden,\n        obj.almacen,\n        qa.ubicacion_completa\n    FROM quants_actuales qa\n    JOIN objetivos_normalizados obj\n        ON qa.ubicacion_normalizada = obj.almacen_normalizado\n        OR qa.ubicacion_normalizada ILIKE obj.almacen_normalizado || '/%'\n),\nproducto_ubicacion AS (\n    SELECT\n        product_id,\n        almacen_orden,\n        almacen,\n        ubicacion_completa,\n        sum(qty) AS cantidad_stock_ubicacion\n    FROM ubicaciones_filtradas\n    GROUP BY\n        product_id,\n        almacen_orden,\n        almacen,\n        ubicacion_completa\n    HAVING sum(qty) <> 0\n),\nalmacenes_por_producto AS (\n    SELECT\n        product_id,\n        array_agg(almacen ORDER BY almacen_orden, almacen) AS almacenes\n    FROM (\n        SELECT DISTINCT\n            product_id,\n            almacen_orden,\n            almacen\n        FROM producto_ubicacion\n    ) a\n    GROUP BY\n        product_id\n)\nSELECT\n    pp.default_code AS \"Materia Prima\",\n    pt.name AS \"Descripción\",\n    uom.name AS \"Unidad\",\n    NULLIF(pt.material_type, '') AS \"Empaque\",\n    app.almacenes AS \"Almacén\",\n    array_agg(pu.ubicacion_completa ORDER BY pu.almacen_orden, pu.ubicacion_completa) AS \"Ubicación Completa\",\n    sum(pu.cantidad_stock_ubicacion) AS \"Cantidad Stock\",\n    ''::text AS \"Contado Por\"\nFROM producto_ubicacion pu\nJOIN product_product pp\n    ON pp.id = pu.product_id\nJOIN product_template pt\n    ON pt.id = pp.product_tmpl_id\nLEFT JOIN product_uom uom\n    ON uom.id = pt.uom_id\nLEFT JOIN almacenes_por_producto app\n    ON app.product_id = pu.product_id\nGROUP BY\n    pp.default_code,\n    pt.name,\n    uom.name,\n    NULLIF(pt.material_type, ''),\n    app.almacenes\nORDER BY\n    min(pu.almacen_orden),\n    pp.default_code;\n\n\n-------------------\n-- Productos con lote y existencia actual en ubicaciones AMP.\nWITH ubicaciones_objetivo AS (\n    SELECT *\n    FROM (VALUES\n        (1, 'Physical Locations/AMP/Stock/B&A'),\n        (2, 'Physical Locations/AMP/Stock/EPTs'),\n        (3, 'Physical Locations/AMP/Stock/Insumos'),\n        (4, 'Physical Locations/AMP/Stock/Prop. Cte.')\n    ) AS u(orden, almacen)\n),\nobjetivos_normalizados AS (\n    SELECT\n        orden,\n        almacen,\n        regexp_replace(almacen, '[[:space:]]*/[[:space:]]*', '/', 'g') AS almacen_normalizado\n    FROM ubicaciones_objetivo\n),\nexistencia_lote_actual AS (\n    SELECT\n        obj.orden AS almacen_orden,\n        pp.default_code AS np,\n        loc.complete_name AS ubicacion,\n        lot.name AS lote,\n        sum(sq.qty) AS cantidad_actual\n    FROM stock_quant sq\n    JOIN stock_location loc\n        ON loc.id = sq.location_id\n    JOIN objetivos_normalizados obj\n        ON regexp_replace(loc.complete_name, '[[:space:]]*/[[:space:]]*', '/', 'g') = obj.almacen_normalizado\n        OR regexp_replace(loc.complete_name, '[[:space:]]*/[[:space:]]*', '/', 'g') ILIKE obj.almacen_normalizado || '/%'\n    JOIN product_product pp\n        ON pp.id = sq.product_id\n    JOIN stock_production_lot lot\n        ON lot.id = sq.lot_id\n       AND lot.product_id = sq.product_id\n    WHERE loc.usage = 'internal'\n      AND sq.lot_id IS NOT NULL\n    GROUP BY\n        obj.orden,\n        pp.default_code,\n        loc.complete_name,\n        lot.name\n    HAVING sum(sq.qty) > 0\n)\nSELECT\n    np AS \"NP\",\n    ubicacion AS \"UBICACION\",\n    lote AS \"LOTE\",\n    cantidad_actual AS \"CANTIDAD\"\nFROM existencia_lote_actual\nORDER BY\n    almacen_orden,\n    ubicacion,\n    np,\n    lote;\n"
+}

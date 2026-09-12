@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+    <div class="card-header p-0 border-bottom-0">
+        <ul class="nav nav-tabs" id="execTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-flujo1" data-bs-toggle="tab" data-bs-target="#flujo1" type="button" role="tab" onclick="switchFlujo('flujo1_excel')">Varias Ubicaciones</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-flujo2" data-bs-toggle="tab" data-bs-target="#flujo2" type="button" role="tab" onclick="switchFlujo('flujo2_query')">Ubicaciones (Query 2)</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-flujo3" data-bs-toggle="tab" data-bs-target="#flujo3" type="button" role="tab" onclick="switchFlujo('flujo3_vacios')">Marbetes en Blanco</button>
+            </li>
+
+        </ul>
+    </div>
+    <div class="card-body tab-content" id="execTabContent">
+        <!-- Flujo 1: Excel -->
+        <div class="tab-pane fade show active" id="flujo1" role="tabpanel">
+            <div class="mb-3">
+                <label>Archivo Excel (con pestañas: cubetas, tambores, etc.):</label>
+                <input type="file" class="form-control" id="excel-run-file" accept=".xlsx">
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-brand-blue w-100" id="btn-execute-f1" onclick="executeProcess('flujo1_excel')">Generar PDFs</button>
+                <button class="btn btn-outline-danger border-secondary text-danger w-100" onclick="purgePDFs('flujo1_excel')">Vaciar PDFs</button>
+            </div>
+        </div>
+        
+        <!-- Flujo 2: Query 2 -->
+        <div class="tab-pane fade" id="flujo2" role="tabpanel">
+            <div class="mb-3">
+                <p class="text-muted small">Este flujo genera los PDFs agrupados por la columna `ubicacion` directamente desde la Base de Datos, sin requerir archivo Excel.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-brand-blue w-100" id="btn-execute-f2" onclick="executeProcess('flujo2_query')">Generar PDFs</button>
+                <button class="btn btn-outline-danger border-secondary text-danger w-100" onclick="purgePDFs('flujo2_query')">Vaciar PDFs</button>
+            </div>
+        </div>
+
+        <!-- Flujo 3: Vacios -->
+        <div class="tab-pane fade" id="flujo3" role="tabpanel">
+            <div class="mb-3 p-3 border border-secondary rounded text-center">
+                <h6 class="text-info mb-1">Folio Maestro de Arranque:</h6>
+                <h4 class="text-warning fw-bold mb-0"><span id="lbl-next-folio">Cargando...</span></h4>
+            </div>
+            <div class="mb-3">
+                <label>Cantidad de Marbetes a generar:</label>
+                <input type="number" class="form-control bg-dark text-white border-secondary" id="input-qty-vacios" placeholder="Ej. 50">
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-brand-blue w-100" id="btn-execute-f3" onclick="executeProcess('flujo3_vacios')">Generar PDFs</button>
+                <button class="btn btn-outline-danger border-secondary text-danger w-100" onclick="purgePDFs('flujo3_vacios')">Vaciar PDFs</button>
+            </div>
+            <button class="btn btn-warning fw-bold text-dark w-100 mt-3 shadow-sm" onclick="copyToPoolFinal()">⬆️ subir VACIOS</button>
+        </div>
+
+    </div>
+</div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header" style="border-bottom-color: #28a745;">
+                <h5 class="mb-0 text-success">Impresión Física (CUPS)</h5>
+            </div>
+            <div class="card-body text-center">
+                <p>Total de PDFs listos: <strong id="pdf-count" class="text-white">0</strong> archivos (<strong id="folio-count" class="text-white">0</strong> folios aprox)</p>
+                <div id="txn-row" class="alert alert-warning py-1 px-2 mb-2 d-none" style="font-size: 0.9rem;">
+                    🏷️ Transacción actual: <strong id="txn-label">—</strong>
+                </div>
+                <div class="d-flex justify-content-center gap-2 mb-3">
+                    <span class="badge bg-info p-2" style="font-size: 0.9rem;">Hojas en Bandeja: <span id="ui-paper-count">0</span></span>
+                    <span class="badge bg-secondary p-2" id="ui-print-status" style="font-size: 0.9rem;">Estado: Detenido</span>
+                </div>
+                
+                <button class="btn btn-brand-gold btn-lg w-100 mb-3" id="btn-print" onclick="startPrinting()" disabled>🖨️ Correr Pool de Impresión</button>
+                
+                <div class="row mt-2" id="print-controls">
+                    <div class="col-3"><button class="btn btn-warning w-100 btn-sm" id="btn-pause" onclick="printAction('pause')" disabled>Pausar ⏸️</button></div>
+                    <div class="col-3"><button class="btn btn-success w-100 btn-sm" id="btn-resume" onclick="printAction('resume')" disabled>Reanudar ▶️</button></div>
+                    <div class="col-3"><button class="btn btn-danger w-100 btn-sm" id="btn-stop" onclick="printAction('stop')" disabled>Detener 🛑</button></div>
+                    <div class="col-3"><button class="btn btn-primary w-100 btn-sm" id="btn-paper" onclick="addPaperUI()" disabled>+ Papel 📄</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+</div>
+
+
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Consola de Logs en Tiempo Real</h5>
+            </div>
+            <div class="card-body">
+                <div id="console-output" class="console-output">
+                    <!-- Logs appear here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 mb-5">
+    <div class="col-md-12">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+            <ul class="nav nav-tabs border-0" id="myTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active text-white" id="pool-tab" data-bs-toggle="tab" data-bs-target="#pool" type="button" role="tab">Resultado de Pool</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link text-white" id="cruce-tab" data-bs-toggle="tab" data-bs-target="#cruce" type="button" role="tab">Datos Cruzados (Sin Folio)</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link text-white" id="query-tab" data-bs-toggle="tab" data-bs-target="#query" type="button" role="tab">Extracción Cruda (Query)</button>
+              </li>
+
+          <li class="nav-item" role="presentation">
+            <button class="nav-link text-white" id="exist-tab" data-bs-toggle="tab" data-bs-target="#exist" type="button" role="tab">Datos Secundarios (SQL Existencias)</button>
+          </li>
+
+            </ul>
+            <button class="btn btn-warning fw-bold shadow-sm" onclick="copyToPoolFinal()">💾 Guardar en Pool Final</button>
+        </div>
+        <div class="tab-content bg-dark p-3 border border-top-0 border-secondary" id="myTabContent">
+          <div class="tab-pane fade show active table-responsive" id="pool" role="tabpanel">
+            <table id="table-pool" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                <thead><tr>
+                    <th>Folio Físico</th><th>NP</th><th>Pestaña</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén</th><th>Cantidad</th><th>Contado Por</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+          </div>
+          <div class="tab-pane fade table-responsive" id="cruce" role="tabpanel">
+            <table id="table-cruce" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                <thead><tr>
+                    <th>NP</th><th>Pestaña</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén</th><th>Cantidad</th><th>Contado Por</th><th>Estado</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+          </div>
+          <div class="tab-pane fade table-responsive" id="query" role="tabpanel">
+            <table id="table-query" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                <thead><tr>
+                    <th>NP/Clave</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén (DB)</th><th>Cantidad</th><th>Contado Por</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+          </div>
+        </div>
+    </div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<div class="row mt-4 mb-5">
+    <div class="col-md-12">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+            <ul class="nav nav-tabs border-0" id="myTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active text-white" id="pool-tab" data-bs-toggle="tab" data-bs-target="#pool" type="button" role="tab">Resultado de Pool</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link text-white" id="cruce-tab" data-bs-toggle="tab" data-bs-target="#cruce" type="button" role="tab">Datos Cruzados (Sin Folio)</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link text-white" id="query-tab" data-bs-toggle="tab" data-bs-target="#query" type="button" role="tab">Extracción Cruda (Query)</button>
+              </li>
+
+          <li class="nav-item" role="presentation">
+            <button class="nav-link text-white" id="exist-tab" data-bs-toggle="tab" data-bs-target="#exist" type="button" role="tab">Datos Secundarios (SQL Existencias)</button>
+          </li>
+
+            </ul>
+            <button class="btn btn-warning fw-bold shadow-sm" onclick="copyToPoolFinal()">💾 Guardar en Pool Final</button>
+        </div>
+        <div class="tab-content bg-dark p-3 border border-top-0 border-secondary" id="myTabContent">
+          <div class="tab-pane fade show active table-responsive" id="pool" role="tabpanel">
+            <table id="table-pool" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                <thead><tr>
+                    <th>Folio Físico</th><th>NP</th><th>Pestaña</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén</th><th>Cantidad</th><th>Contado Por</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+          </div>
+          <div class="tab-pane fade table-responsive" id="cruce" role="tabpanel">
+            <table id="table-cruce" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                <thead><tr>
+                    <th>NP</th><th>Pestaña</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén</th><th>Cantidad</th><th>Contado Por</th><th>Estado</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+          </div>
+          <div class="tab-pane fade table-responsive" id="query" role="tabpanel">
+            <table id="table-query" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                <thead><tr>
+                    <th>NP/Clave</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén (DB)</th><th>Cantidad</th><th>Contado Por</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+          </div>
+        </div>
+    </div>
+</div>
+</div>
+
+{% endblock %}

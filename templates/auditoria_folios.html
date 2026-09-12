@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-secondary">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">🔎 Auditoría de Folios (Papelera de Reciclaje)</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-info btn-sm fw-bold" id="btn-aud-reconstruct" onclick="reconstructAuditoria()">🛠️ Reconstruir desde PDFs</button>
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-edit-aud" onclick="editSelectedAuditoria()">✏️ Editar Seleccionados</button>
+                    <button class="btn btn-warning btn-sm fw-bold d-none" id="btn-save-aud" onclick="saveEditedAuditoria()">💾 Confirmar y Guardar</button>
+                    <button class="btn btn-secondary btn-sm fw-bold d-none" id="btn-cancel-aud" onclick="cancelEditAuditoria()">❌ Cancelar Edición</button>
+                    <button class="btn btn-success btn-sm fw-bold" id="btn-restore-aud" onclick="restoreSelectedAuditoria()">↩️ Restaurar a Pool Final</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-3">
+                    Los registros que se eliminan "seleccionados" desde Pool Final se mueven aquí con TODA su información.
+                    Puedes editarlos y, si lo decides, restaurarlos de vuelta al Pool Final conservando su folio.
+                    El botón "Reconstruir desde PDFs" agrega aquí los folios que existen físicamente en los archivos generados
+                    (carpeta <code>pdfs/</code>) pero que no están ni en Pool Final ni en esta papelera, con estado
+                    "Reconstruido desde PDF".
+                </p>
+                <table id="table-auditoria" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                    <thead><tr>
+                        <th class="text-center" style="width: 40px;"><input type="checkbox" id="chk-all-aud" onclick="toggleAllAuditoria(this)"></th>
+                        <th>Folio Físico</th><th>NP</th><th>Pestaña</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén</th><th>Ubicación</th><th>Varias</th><th>Layout</th><th>Cantidad</th><th>Contado Por</th><th>Estado</th><th>Auditoría</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">⚠️ Folios Irrecuperables (Huecos sin rastro)</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-3">
+                    Números de folio que no existen ni en Pool Final, ni en la Papelera, ni como archivo PDF físico
+                    (se evalúa la secuencia completa desde 00001 hasta el máximo folio localizado). No se pueden recomponer.
+                </p>
+                <table id="table-lost" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                    <thead><tr>
+                        <th>Folio Físico</th><th>Estado</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}

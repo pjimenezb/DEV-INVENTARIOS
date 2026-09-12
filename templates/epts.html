@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">🛢️ EPTS</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-epts-uom" onclick="fillEptsUomEmpaque()">🧮 UoM & Empaque</button>
+                    <button class="btn btn-dark btn-sm fw-bold" id="btn-epts-q2" onclick="fillEptsLocationsQ2()">📍 Llenar Ubicaciones (Query 2)</button>
+                    <button class="btn btn-info btn-sm fw-bold" id="btn-epts-query" onclick="runEptsQuery()">🔍 Ejecutar Query EPTS</button>
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-edit-epts" onclick="editSelectedEpts()">✏️ Editar Seleccionados</button>
+                    <button class="btn btn-warning btn-sm fw-bold d-none" id="btn-save-epts" onclick="saveEditedEpts()">💾 Confirmar y Guardar</button>
+                    <button class="btn btn-secondary btn-sm fw-bold d-none" id="btn-cancel-epts" onclick="cancelEditEpts()">❌ Cancelar Edición</button>
+                    <button class="btn btn-info btn-sm fw-bold" id="btn-epts-upload" onclick="uploadEptsFiles()">⬆️ Cargar y Reemplazar Datos EPTS</button>
+                    <button class="btn btn-primary btn-sm fw-bold" id="btn-epts-export" onclick="exportEptsExcel()">📊 Exportar Excel</button>
+                    <button class="btn btn-danger btn-sm fw-bold" id="btn-epts-delete" onclick="deleteSelectedEpts()">🗑️ Eliminar Seleccionados</button>
+                    <button class="btn btn-danger btn-sm fw-bold" id="btn-epts-empty" onclick="emptyEptsData()">🧹 Vaciar Modelo EPTS</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-info">Archivo de EPTS</label>
+                        <input type="file" class="form-control bg-dark text-white border-secondary" id="epts-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-info">Pestaña (opcional)</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="epts-sheet" placeholder="Ej: Septiembre 2026">
+                        <div class="form-text text-secondary">Si se deja vacío se limpia el modelo y se cargan todas las pestañas válidas.</div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-info w-100 fw-bold" onclick="uploadEptsFiles()">⬆️ Cargar y Reemplazar Datos EPTS</button>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-12">
+                        <div class="alert alert-info py-2 mb-0 small fw-bold">
+                            El "Pasar a Pool Final" de EPTS está desactivado por ahora.
+                            Para reemplazar el inventario definitivo: usa el botón <strong>Vaciar Modelo EPTS</strong> y luego sube el archivo final.
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="text-info">Datos EPTS</h6>
+                <div class="table-responsive">
+                    <table id="table-epts" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="mt-2 small text-secondary" id="epts-info">
+                    Sube el Inventario de EPT's. Se vacía la tabla epts_data y se vuelve a cargar (pestaña "EPTS").
+                </div>
+
+                <hr class="border-secondary my-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="text-warning mb-0">Comparativo EPTS (Query EPTS vs Datos EPTS)</h6>
+                    <button class="btn btn-success btn-sm fw-bold" id="btn-epts-comp-export" onclick="exportEptsComparativoExcel()">📊 Exportar Comparativo</button>
+                </div>
+                <div class="table-responsive">
+                    <table id="table-epts-comp" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="mt-2 small text-secondary" id="epts-comp-info">
+                    Presiona "🔍 Ejecutar Query EPTS" para generar el comparativo. La tabla se borra y se vuelve a cargar en cada ejecución.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}

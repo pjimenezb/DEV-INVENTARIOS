@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">📋 Análisis Final</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-info btn-sm fw-bold" id="btn-af-upload" onclick="uploadAnalisisFinal()">⬆️ Cargar Excel</button>
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-af-uom" onclick="fillAnalisisFinalUom()">🧮 Actualizar UDM</button>
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-af-desc" onclick="fillAnalisisFinalDesc()">📝 Actualizar Descripción</button>
+                    <button class="btn btn-primary btn-sm fw-bold" id="btn-af-export" onclick="exportAnalisisFinalExcel()">📊 Exportar Excel</button>
+                    <button class="btn btn-danger btn-sm fw-bold" id="btn-af-delete" onclick="deleteSelectedAnalisisFinal()">🗑️ Eliminar Seleccionados</button>
+                    <button class="btn btn-danger btn-sm fw-bold" id="btn-af-empty" onclick="emptyAnalisisFinal()">🧹 Vaciar Modelo</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <div class="card border-danger mb-3">
+                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold">🛡️ Log de Auditoría (Hallazgos de Control de Calidad)</h6>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge bg-light text-danger" id="af-aud-critical">Critical: 0</span>
+                            <span class="badge bg-warning text-dark" id="af-aud-warning">Warning: 0</span>
+                            <span class="badge bg-info text-dark" id="af-aud-info">Info: 0</span>
+                            <span class="badge" id="af-aud-super-crit">Super Critical: 0</span>
+                            <span class="badge bg-secondary" id="af-aud-total">Total: 0</span>
+                            <button class="btn btn-light btn-sm fw-bold" onclick="loadAnalisisFinalAudit()">🔄 Recalcular</button>
+                        </div>
+                    </div>
+                    <div class="card-body bg-dark text-white">
+                        <div id="af-sku-check" class="mb-2"></div>
+                        <div id="af-q1-banner" class="mb-2"></div>
+                        <div class="mb-2 d-flex gap-3 flex-wrap" id="af-aud-filters">
+                            <label class="form-check form-check-inline small">
+                                <input class="form-check-input af-aud-filter" type="radio" name="af-aud-sev" value="all" checked>
+                                <span>Todos</span>
+                            </label>
+                            <label class="form-check form-check-inline small text-danger">
+                                <input class="form-check-input af-aud-filter" type="radio" name="af-aud-sev" value="critical">
+                                <span>Critical</span>
+                            </label>
+                            <label class="form-check form-check-inline small text-warning">
+                                <input class="form-check-input af-aud-filter" type="radio" name="af-aud-sev" value="warning">
+                                <span>Warning</span>
+                            </label>
+                            <label class="form-check form-check-inline small text-info">
+                                <input class="form-check-input af-aud-filter" type="radio" name="af-aud-sev" value="info">
+                                <span>Info</span>
+                            </label>
+                            <label class="form-check form-check-inline small fw-bold" style="color:#e63946;">
+                                <input class="form-check-input af-aud-filter" type="radio" name="af-aud-sev" value="super_critical">
+                                <span>🚨 Super Critical</span>
+                            </label>
+                        </div>
+                        <div class="table-responsive">
+                            <table id="table-af-audit" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                                <thead></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="modal-af-audit" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header border-secondary">
+                                <h5 class="modal-title fw-bold" id="af-audit-modal-title">👁️ Revisar Hallazgo</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                            </div>
+                            <div class="modal-body" id="af-audit-modal-body"></div>
+                            <div class="modal-footer border-secondary">
+                                <div class="d-flex flex-wrap align-items-center gap-2 me-auto">
+                                    <span class="small text-secondary me-1">Estado:</span>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="af-state" id="af-state-corregido" value="corregido">
+                                        <label class="form-check-label text-success fw-bold" for="af-state-corregido">✔ Corregido</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="af-state" id="af-state-anotado" value="anotado">
+                                        <label class="form-check-label text-warning fw-bold" for="af-state-anotado">📝 Anotado</label>
+                                    </div>
+                                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary mt-1" id="af-state-nota" rows="2" placeholder="Nota (obligatoria si marcas 'Anotado', para que tomes acciones luego)..." style="min-width: 22rem;"></textarea>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                                <button class="btn btn-success btn-sm fw-bold" onclick="saveAnalisisFinalAuditState()">💾 Guardar Estado</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold text-warning">Archivo de Inventario MP</label>
+                        <input type="file" class="form-control bg-dark text-white border-secondary" id="af-file" accept=".xlsx,.xls">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-warning w-100 fw-bold" onclick="uploadAnalisisFinal()">⬆️ Cargar y Reemplazar</button>
+                    </div>
+                </div>
+
+                <div id="af-summary" class="mb-3"></div>
+
+                <div class="row g-2 mb-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small text-secondary mb-1">Buscar por NP</label>
+                        <input type="text" id="af-f-search" class="form-control bg-dark text-white border-secondary" placeholder="🔍 Coincidencias en el NP..." oninput="applyAFSearch()">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-secondary mb-1">Buscar por Descripción</label>
+                        <input type="text" id="af-f-desc" class="form-control bg-dark text-white border-secondary" placeholder="🔍 Coincidencias en la descripción..." oninput="applyAFSearch()">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-secondary mb-1">Buscar por Lote</label>
+                        <input type="text" id="af-f-lote" class="form-control bg-dark text-white border-secondary" placeholder="🔍 Coincidencias en el lote..." oninput="applyAFSearch()">
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs" id="af-tabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#tab-af-ba">🏷️ B&A <span id="af-count-ba" class="badge bg-secondary ms-1">0</span></a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tab-af-insumos">📦 Insumos <span id="af-count-insumos" class="badge bg-secondary ms-1">0</span></a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tab-af-propcte">🤝 Prop. Cliente <span id="af-count-propcte" class="badge bg-secondary ms-1">0</span></a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tab-af-ept">🛢️ EPT <span id="af-count-ept" class="badge bg-secondary ms-1">0</span></a>
+                    </li>
+                </ul>
+
+                <div class="tab-content pt-3">
+                    <div class="tab-pane fade show active" id="tab-af-ba">
+                        <div class="d-flex justify-content-end align-items-center gap-2 mb-2 flex-wrap">
+                            <button class="btn btn-info btn-sm fw-bold" id="btn-af-ba-carga" onclick="generarBaCarga()">📄 Generar ajuste-ba-carga</button>
+                            <button class="btn btn-danger btn-sm fw-bold" id="btn-af-ba-baja" onclick="generarBaBaja()">📄 Generar ajuste-ba-baja</button>
+                        </div>
+                        <div id="af-ba-carga-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div id="af-ba-baja-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div class="table-responsive">
+                            <table id="table-af-ba" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                                <thead></thead><tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2 small text-secondary" id="af-info-ba"></div>
+                    </div>
+                    <div class="tab-pane fade" id="tab-af-insumos">
+                        <div class="d-flex justify-content-end align-items-center gap-2 mb-2 flex-wrap">
+                            <button class="btn btn-info btn-sm fw-bold" id="btn-af-insumos-carga" onclick="generarInsumosCarga()">📄 Generar ajuste-insumos-carga</button>
+                            <button class="btn btn-danger btn-sm fw-bold" id="btn-af-insumos-baja" onclick="generarInsumosBaja()">📄 Generar ajuste-insumos-baja</button>
+                        </div>
+                        <div id="af-insumos-carga-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div id="af-insumos-baja-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div class="table-responsive">
+                            <table id="table-af-insumos" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                                <thead></thead><tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2 small text-secondary" id="af-info-insumos"></div>
+                    </div>
+                    <div class="tab-pane fade" id="tab-af-propcte">
+                        <div class="d-flex justify-content-end align-items-center gap-2 mb-2 flex-wrap">
+                            <button class="btn btn-info btn-sm fw-bold" id="btn-af-propcli-carga" onclick="generarPropCliCarga()">📄 Generar ajuste-propcli-carga</button>
+                            <button class="btn btn-danger btn-sm fw-bold" id="btn-af-propcli-baja" onclick="generarPropCliBaja()">📄 Generar ajuste-propcli-baja</button>
+                        </div>
+                        <div id="af-propcli-carga-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div id="af-propcli-baja-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div class="table-responsive">
+                            <table id="table-af-propcte" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                                <thead></thead><tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2 small text-secondary" id="af-info-propcte"></div>
+                    </div>
+                    <div class="tab-pane fade" id="tab-af-ept">
+                        <div class="d-flex justify-content-end align-items-center gap-2 mb-2 flex-wrap">
+                            <button class="btn btn-dark btn-sm fw-bold" id="btn-af-ajuste-carga" onclick="generarAjusteCarga()">📄 Generar ajuste-ept-carga</button>
+                        </div>
+                        <div id="af-ajuste-carga-info" class="alert d-none py-2 small fw-bold"></div>
+                        <div class="table-responsive">
+                            <table id="table-af-ept" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                                <thead></thead><tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="mt-2 small text-secondary" id="af-info-ept"></div>
+                    </div>
+                </div>
+
+                <div class="mt-2 small text-secondary" id="af-info">
+                    Carga el archivo INVENTARIO MP 2026.xlsx (pestañas MP y EPT).
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}

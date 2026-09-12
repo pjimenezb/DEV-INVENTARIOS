@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="full-page-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; flex-direction:column; align-items:center; justify-content:center; color:white;">
+    <div class="spinner-border text-info" style="width: 4rem; height: 4rem;" role="status"></div>
+    <h3 class="mt-3" id="loader-text">Procesando archivo...</h3>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12 d-flex justify-content-between align-items-center border-bottom border-warning pb-2">
+        <h3 class="fw-bold text-warning mb-0">Carga Archivos WMS 1</h3>
+    </div>
+</div>
+
+<div class="row g-4 mb-5">
+    {% set bloques = [
+        ('Remisionado No embarcado', 'border-primary', 'bg-primary'),
+        ('Remisionado No documentado', 'border-success', 'bg-success'),
+        ('Zar Kruse', 'border-danger', 'bg-danger'),
+        ('Otra Ubicación', 'border-warning', 'bg-warning text-dark'),
+        ('Transferencias', 'border-info', 'bg-info text-dark'),
+        ('Propiedad de cliente', 'border-secondary', 'bg-secondary')
+    ] %}
+
+    {% for nombre, borde, fondo in bloques %}
+    <div class="col-md-6">
+        <div class="card {{ borde }} h-100 shadow-sm">
+            <div class="card-header {{ fondo }} d-flex flex-column gap-2 p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">{{ nombre }}</h5>
+                    <span class="badge bg-dark text-white fs-6" id="count-{{ loop.index }}">0</span>
+                </div>
+                
+                <!-- Input de Responsable y Configuración de Operaciones -->
+                <div class="d-flex flex-column gap-2 mt-1">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold" style="font-size: 0.9rem; opacity: 0.9; min-width: 90px;">Responsable:</span>
+                        <input type="text" 
+                               class="form-control form-control-sm resp-input fw-bold" 
+                               style="background: rgba(255,255,255,0.2); border: 1px dashed rgba(255,255,255,0.4); color: inherit;"
+                               data-bloque="{{ nombre }}" 
+                               value="{{ responsables[nombre] }}"
+                               placeholder="Ingresa el responsable...">
+                        <span class="guardado-msg" id="msg-resp-{{ loop.index }}" style="font-size: 0.75rem; display: none;">✅ OK</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold" style="font-size: 0.9rem; opacity: 0.9; min-width: 90px;">Operación:</span>
+                        <select class="form-select form-select-sm conf-input fw-bold" 
+                                style="background: rgba(255,255,255,0.2); border: 1px dashed rgba(255,255,255,0.4); color: inherit; width: 45%;"
+                                data-bloque="{{ nombre }}" data-type="operacion">
+                            <option value="sumar" class="text-dark" {% if configs[nombre]['operacion'] == 'sumar' %}selected{% endif %}>[+] Sumar</option>
+                            <option value="restar" class="text-dark" {% if configs[nombre]['operacion'] == 'restar' %}selected{% endif %}>[-] Restar</option>
+                        </select>
+                        <select class="form-select form-select-sm conf-input fw-bold" 
+                                style="background: rgba(255,255,255,0.2); border: 1px dashed rgba(255,255,255,0.4); color: inherit; width: 55%;"
+                                data-bloque="{{ nombre }}" data-type="destino">
+                            <option value="odoo" class="text-dark" {% if configs[nombre]['destino'] == 'odoo' %}selected{% endif %}>Aplicar a Odoo</option>
+                            <option value="wms" class="text-dark" {% if configs[nombre]['destino'] == 'wms' %}selected{% endif %}>Aplicar a WMS</option>
+                        </select>
+                        <span class="guardado-msg" id="msg-conf-{{ loop.index }}" style="font-size: 0.75rem; display: none;">✅ OK</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-body bg-dark text-white">
+                <!-- Zona de Carga y Plantilla -->
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="small text-muted">Sube tu archivo CSV:</span>
+                    <a href="/api/pt/wms1_archivos/plantilla/{{ nombre }}" class="btn btn-sm btn-outline-info fw-bold" style="font-size: 0.75rem;">⬇️ Plantilla</a>
+                </div>
+                <form class="upload-form d-flex gap-2 mb-3" data-bloque="{{ nombre }}" data-idx="{{ loop.index }}">
+                    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary file-input" accept=".csv,.xlsx,.xls" required>
+                    <button type="submit" class="btn btn-sm btn-outline-light fw-bold" style="white-space: nowrap;">⬆️ Cargar</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger fw-bold clear-btn" data-bloque="{{ nombre }}" style="white-space: nowrap;">🗑️ Vaciar</button>
+                </form>
+
+                <!-- Tabla -->
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                    <table class="table table-sm table-dark table-striped table-hover mb-0" id="table-{{ loop.index }}" style="font-size: 0.85rem;">
+                        <thead class="sticky-top bg-dark">
+                            <tr>
+                                <th>SKU</th>
+                                <th class="text-end">Cantidad</th>
+                                {% if nombre == 'Otra Ubicación' %}
+                                <th class="text-end">Ubicación</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="{% if nombre == 'Otra Ubicación' %}3{% else %}2{% endif %}" class="text-center text-muted py-3">Sin datos cargados.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showLoader(text = 'Procesando...') {
+        document.getElementById('loader-text').innerText = text;
+        document.getElementById('full-page-loader').style.display = 'flex';
+    }
+
+    function hideLoader() {
+        document.getElementById('full-page-loader').style.display = 'none';
+    }
+
+    // Auto-guardado de responsable (on blur)
+    document.querySelectorAll('.resp-input').forEach((input, index) => {
+        input.addEventListener('blur', async function() {
+            const bloque = this.dataset.bloque;
+            const responsable = this.value.trim();
+            const msgSpan = document.getElementById(`msg-resp-${index + 1}`);
+            
+            try {
+                const res = await fetch('/api/pt/wms1_archivos/responsable', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({bloque, responsable})
+                });
+                const json = await res.json();
+                if(json.success) {
+                    msgSpan.style.display = 'inline';
+                    setTimeout(() => msgSpan.style.display = 'none', 2000);
+                }
+            } catch(e) {
+                console.error("Error guardando responsable:", e);
+            }
+        });
+        
+        // Estética al enfocar
+        input.addEventListener('focus', function() {
+            this.style.background = 'white';
+            this.style.color = 'black';
+        });
+        input.addEventListener('blur', function() {
+            this.style.background = 'rgba(255,255,255,0.2)';
+            this.style.color = 'inherit';
+        });
+    });
+
+    // Auto-guardado de configuración (on change)
+    document.querySelectorAll('.conf-input').forEach(select => {
+        select.addEventListener('change', async function() {
+            const bloque = this.dataset.bloque;
+            const type = this.dataset.type;
+            const val = this.value;
+            // El index está basado en el orden en el DOM, podemos encontrar su msgSpan pariente
+            const msgSpan = this.closest('.card-header').querySelector('span[id^="msg-conf-"]');
+            
+            const payload = { bloque: bloque };
+            payload[type] = val;
+            
+            try {
+                const res = await fetch('/api/pt/wms1_archivos/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if(json.success && msgSpan) {
+                    msgSpan.style.display = 'inline';
+                    setTimeout(() => msgSpan.style.display = 'none', 2000);
+                }
+            } catch(e) {
+                console.error(`Error guardando configuración de ${type}:`, e);
+            }
+        });
+        
+        // Estética al enfocar
+        select.addEventListener('focus', function() {
+            this.style.background = 'white';
+            this.style.color = 'black';
+        });
+        select.addEventListener('blur', function() {
+            this.style.background = 'rgba(255,255,255,0.2)';
+            this.style.color = 'inherit';
+        });
+    });
+
+    // Dibujar tabla y actualizar conteo
+    function renderTable(idx, data, bloqueName) {
+        const tbody = document.querySelector(`#table-${idx} tbody`);
+        document.getElementById(`count-${idx}`).innerText = data.length;
+        
+        const colspan = bloqueName === 'Otra Ubicación' ? 3 : 2;
+        
+        if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted py-3">Sin datos cargados.</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        data.forEach(row => {
+            html += `<tr>
+                <td class="fw-bold text-info">${row.sku || ''}</td>
+                <td class="text-end">${row.cantidad || ''}</td>
+                ${bloqueName === 'Otra Ubicación' ? `<td class="text-end">${row.ubicacion || ''}</td>` : ''}
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    // Cargar datos de la BD al abrir la página
+    async function loadInitialData() {
+        const forms = document.querySelectorAll('.upload-form');
+        for (let form of forms) {
+            const bloque = form.dataset.bloque;
+            const idx = form.dataset.idx;
+            try {
+                const res = await fetch(`/api/pt/wms1_archivos/data/${encodeURIComponent(bloque)}`);
+                const json = await res.json();
+                renderTable(idx, json.data || [], bloque);
+            } catch(e) {
+                console.error(`Error cargando bloque ${bloque}:`, e);
+            }
+        }
+    }
+
+    // Manejar subida de formulario
+    document.querySelectorAll('.upload-form').forEach(form => {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const bloque = this.dataset.bloque;
+            const idx = this.dataset.idx;
+            const fileInput = this.querySelector('.file-input');
+            
+            if (!fileInput.files[0]) {
+                alert('Selecciona un archivo primero.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('bloque', bloque);
+
+            showLoader(`Cargando CSV en ${bloque}...`);
+            try {
+                const res = await fetch('/api/pt/wms1_archivos/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const json = await res.json();
+                
+                if (json.success) {
+                    // Refrescar tabla del bloque
+                    const dataRes = await fetch(`/api/pt/wms1_archivos/data/${encodeURIComponent(bloque)}`);
+                    const dataJson = await dataRes.json();
+                    renderTable(idx, dataJson.data || [], bloque);
+                    alert('✅ ' + json.msg);
+                    fileInput.value = ''; // Limpiar input
+                } else {
+                    alert('❌ Error: ' + json.msg);
+                }
+            } catch (e) {
+                alert('❌ Error de conexión: ' + e.message);
+            } finally {
+                hideLoader();
+            }
+        });
+    });
+
+    // Vaciar bloque (confirmation + refresh + clear table)
+    document.querySelectorAll('.clear-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const bloque = this.dataset.bloque;
+            if (!confirm(`¿Seguro que quieres vaciar el bloque "${bloque}"? Se eliminarán todos sus registros.`)) return;
+            const idx = this.closest('.upload-form').dataset.idx;
+            showLoader(`Vaciando ${bloque}...`);
+            try {
+                const res = await fetch('/api/pt/wms1_archivos/clear', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ bloque })
+                });
+                const json = await res.json();
+                if (json.success) {
+                    renderTable(idx, [], bloque);
+                    alert('✅ ' + json.msg);
+                } else {
+                    alert('❌ Error: ' + json.msg);
+                }
+            } catch(e) {
+                alert('❌ Error de conexión: ' + e.message);
+            } finally {
+                hideLoader();
+            }
+        });
+    });
+
+    // Inicializar
+    document.addEventListener('DOMContentLoaded', loadInitialData);
+</script>
+{% endblock %}

@@ -1,0 +1,896 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="full-page-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; flex-direction:column; align-items:center; justify-content:center; color:white;">
+    <div class="spinner-border text-info" style="width: 4rem; height: 4rem;" role="status"></div>
+    <h3 class="mt-3">Cargando y Cruzando Datos...</h3>
+    <p class="text-muted">Por favor espera, renderizando el consolidado.</p>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12 d-flex justify-content-between align-items-center border-bottom border-success pb-2">
+        <h3 class="fw-bold text-success mb-0">Consolidado CEDIS 1 (Odoo vs WMS)</h3>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-success" id="card-cons">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 fw-bold d-inline-block">Consolidado <span class="badge bg-dark text-white ms-2" id="cons-count">0</span></h5>
+                    <span class="badge bg-light text-dark ms-2" id="cons-last-update">Última actualización: --</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-dark btn-sm fw-bold text-white border" id="btn-cons-fullscreen" onclick="toggleFullscreen()">⛶ Pantalla completa</button>
+                    <button class="btn btn-warning btn-sm fw-bold text-dark" id="btn-cons-reload" onclick="reloadConsolidado()">🔄 Recargar (Catálogos → Cruce)</button>
+                    <button class="btn btn-info btn-sm fw-bold text-dark" id="btn-cons-update" onclick="updateConsolidado()">⚡ Actualización de Datos</button>
+                </div>
+            </div>
+            <div id="stale-alert" class="alert alert-warning d-none align-items-center m-0 rounded-0 py-2" style="font-size: 0.85rem;" role="alert">
+                ⚠️ Hay datos más nuevos que este consolidado: <b id="stale-list"></b>.
+                Presiona <b>🔄 Recargar (Catálogos → Cruce)</b> para traer catálogos frescos y cuadrar.
+            </div>
+            <div class="card-body bg-dark text-white table-responsive" id="cons-body">
+                <table id="table-cons" class="table table-sm table-dark table-striped table-bordered w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                    <thead id="thead-cons">
+                        <!-- Headers will be generated dynamically -->
+                    </thead>
+                    <tbody id="tbody-cons">
+                        <!-- Body will be generated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer bg-dark border-top border-success d-flex justify-content-between align-items-center text-white py-2" id="cons-footer">
+                <div id="cons-footer-info" class="text-muted small"></div>
+                <div id="cons-footer-paging"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/colreorder/1.7.0/css/colReorder.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>
+
+<style>
+    .dt-filter-input {
+        width: 100%;
+        padding: 3px;
+        box-sizing: border-box;
+        font-size: 0.8rem;
+        background-color: #212529;
+        color: white;
+        border: 1px solid #495057;
+        border-radius: 4px;
+    }
+    .dt-filter-input::placeholder {
+        color: #adb5bd;
+    }
+
+    /* Estilos para el Resizing de columnas */
+    th {
+        position: relative;
+    }
+    .resizer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 5px;
+        cursor: col-resize;
+        user-select: none;
+        height: 100%;
+        z-index: 1;
+    }
+    .resizer:hover, .resizing {
+        border-right: 2px solid #0dcaf0;
+    }
+    
+    /* Estilos para ocultar/desocultar estilo Google Sheets */
+    .btn-hide-col {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+        background: #343a40;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        border: 1px solid #495057;
+        z-index: 2;
+    }
+    th:hover .btn-hide-col {
+        opacity: 1;
+    }
+    .btn-unhide-col {
+        cursor: pointer;
+        background: #198754;
+        color: white;
+        border-radius: 3px;
+        padding: 0 4px;
+        font-size: 10px;
+        margin: 0 2px;
+        border: none;
+    }
+    .unhide-indicator {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 12px;
+        background: #198754;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 3;
+    }
+    .unhide-left { left: 0; }
+    .unhide-right { right: 0; }
+
+    /* Botón de filtro seleccionable (abre popup de lista) */
+    .dt-list-btn {
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .dt-list-btn.active {
+        border-color: #198754;
+        background-color: #14532d;
+        color: #d1e7dd;
+        font-weight: 700;
+    }
+    /* Popup de filtros seleccionables */
+    .dt-popup {
+        position: fixed;
+        z-index: 6000;
+        display: none;
+        width: 240px;
+        max-height: 60vh;
+        overflow-y: auto;
+        background: #343a40;
+        border: 1px solid #6c757d;
+        border-radius: 6px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+        padding: 8px;
+        color: #fff;
+        font-size: 0.82rem;
+    }
+    .dt-popup-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    .dt-popup-title {
+        font-size: 0.78rem;
+        color: #ffc107;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+    }
+    .dt-popup-opts {
+        max-height: calc(60vh - 40px);
+        overflow-y: auto;
+    }
+    .dt-popup-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 4px;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    .dt-popup-item:hover {
+        background: #495057;
+    }
+    .dt-popup-item input {
+        accent-color: #198754;
+        margin: 0;
+    }
+
+    /* Layout de altura completa: la tabla ocupa todo el alto disponible de la pantalla */
+    body {
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .container {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .row.mb-4 {
+        flex: 0 0 auto;
+        margin-bottom: 0 !important;
+    }
+    .row.mb-5 {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin-bottom: 0 !important;
+    }
+    .row.mb-5 > .col-md-12 {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    /* Modo pantalla completa para auditoría */
+    #card-cons.cons-fullscreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        margin: 0;
+        z-index: 5000;
+        overflow: auto;
+        background: #212529;
+        border-radius: 0;
+    }
+    #card-cons {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 0;
+    }
+    .card-header,
+    #stale-alert {
+        flex: 0 0 auto;
+    }
+    /* Área de la tabla con scroll interno: el header y el footer quedan fijos */
+    #card-cons .card-body#cons-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+    /* Encabezado en flujo normal: los títulos y filtros suben con la tabla
+       al hacer scroll para que ninguna fila quede oculta detrás de ellos.
+       (Los filtros van debajo de los títulos en una fila separada, sin solaparse) */
+    #table-cons {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    #table-cons thead th {
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    /* Footer con contador siempre visible */
+    #cons-footer {
+        flex: 0 0 auto;
+    }
+    #cons-footer .pagination {
+        margin: 0;
+    }
+    #cons-footer-paging:empty {
+        display: none;
+    }
+</style>
+
+<script>
+    let dtCons = null;
+
+    // Filtro numérico del campo DIFF (= 0 / > 0 / < 0)
+    window.ptDiffFilter = '';
+    $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+        const mode = window.ptDiffFilter || '';
+        if (!mode) return true;
+        try {
+            const api = new $.fn.dataTable.Api(settings);
+            const v = parseFloat(api.row(dataIndex).data()['DIFF']);
+            if (isNaN(v)) return false;
+            if (mode === '=') return v === 0;
+            if (mode === '>') return v > 0;
+            if (mode === '<') return v < 0;
+        } catch (e) { return true; }
+        return true;
+    });
+
+    // Filtros seleccionables por lista (Acción y columnas con <= 10 valores distintos)
+    window.ptMultiFilters = {};
+    $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+        const mf = window.ptMultiFilters || {};
+        const keys = Object.keys(mf);
+        if (keys.length === 0) return true;
+        try {
+            const api = new $.fn.dataTable.Api(settings);
+            const row = api.row(dataIndex).data();
+            for (let k = 0; k < keys.length; k++) {
+                const allowed = mf[keys[k]] || [];
+                if (allowed.length === 0) continue;
+                let v = row[keys[k]];
+                if (v === '' || v === null || v === undefined) v = '__EMPTY__';
+                else v = String(v).trim();
+                if (allowed.indexOf(v) === -1) return false;
+            }
+        } catch (e) { return true; }
+        return true;
+    });
+
+    // Ordena los valores distintos (numérico si todos son números, si no alfabético)
+    function sortDistinct(arr) {
+        const allNum = arr.every(x => x !== '' && !isNaN(parseFloat(x)) && isFinite(x));
+        if (allNum) return arr.slice().sort((a, b) => parseFloat(a) - parseFloat(b));
+        return arr.slice().sort((a, b) => a.localeCompare(b, 'es'));
+    }
+
+    // Escapa texto para usarlo como contenido HTML / atributos
+    function escHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showLoader() {
+        document.getElementById('full-page-loader').style.display = 'flex';
+    }
+
+    function hideLoader() {
+        document.getElementById('full-page-loader').style.display = 'none';
+    }
+
+    function toggleFullscreen() {
+        const card = document.getElementById('card-cons');
+        const btn = document.getElementById('btn-cons-fullscreen');
+        card.classList.toggle('cons-fullscreen');
+        btn.textContent = card.classList.contains('cons-fullscreen') ? '✖ Salir' : '⛶ Pantalla completa';
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeListPopup();
+            if (document.getElementById('card-cons').classList.contains('cons-fullscreen')) {
+                toggleFullscreen();
+            }
+        }
+    });
+
+    // ==========================================
+    // POPUP DE FILTROS SELECCIONABLES (lista)
+    // ==========================================
+
+    function buildPopup() {
+        const p = document.createElement('div');
+        p.id = 'dt-popup';
+        p.className = 'dt-popup';
+        p.innerHTML = `<div class="dt-popup-head"><span id="dt-popup-title" class="dt-popup-title"></span><button type="button" class="btn-close btn-close-white" onclick="closeListPopup()" title="Cerrar"></button></div><div id="dt-popup-opts" class="dt-popup-opts"></div>`;
+        document.body.appendChild(p);
+        return p;
+    }
+
+    function closeListPopup() {
+        const p = document.getElementById('dt-popup');
+        if (p) p.style.display = 'none';
+        window._ptPopupCol = null;
+    }
+
+    function openListPopup(btn, colName) {
+        const p = document.getElementById('dt-popup') || buildPopup();
+        const opts = window.ptMultiOptions[colName] || { values: [], hasEmpty: false };
+        const sel = window.ptMultiFilters[colName] || [];
+        const items = opts.values.map(v =>
+            `<label class="dt-popup-item"><input type="checkbox" value="${escHtml(v)}" ${sel.indexOf(v) > -1 ? 'checked' : ''}><span>${escHtml(v)}</span></label>`
+        ).join('');
+        const emptyItem = opts.hasEmpty
+            ? `<label class="dt-popup-item"><input type="checkbox" value="__EMPTY__" ${sel.indexOf('__EMPTY__') > -1 ? 'checked' : ''}><span>(vacío)</span></label>`
+            : '';
+        document.getElementById('dt-popup-title').textContent = colName;
+        document.getElementById('dt-popup-opts').innerHTML = items + emptyItem;
+
+        document.getElementById('dt-popup-opts').querySelectorAll('input[type=checkbox]').forEach(cb => {
+            cb.addEventListener('change', function () {
+                const col = window._ptPopupCol;
+                const checked = Array.from(document.querySelectorAll('#dt-popup input[type=checkbox]:checked')).map(x => x.value);
+                if (checked.length === 0) delete window.ptMultiFilters[col];
+                else window.ptMultiFilters[col] = checked;
+                refreshListButton(col);
+                if (dtCons) dtCons.draw();
+            });
+        });
+
+        const br = btn.getBoundingClientRect();
+        p.style.width = '240px';
+        p.style.left = Math.max(8, Math.min(br.left, window.innerWidth - 250)) + 'px';
+        p.style.top = (br.bottom + 4) + 'px';
+        p.style.display = 'block';
+        window._ptPopupCol = colName;
+        const ph = p.offsetHeight;
+        if (br.bottom + 4 + ph > window.innerHeight) {
+            p.style.top = Math.max(8, br.top - ph - 4) + 'px';
+        }
+    }
+
+    function refreshListButton(col) {
+        const escVal = String(col).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const btn = document.querySelector(`.dt-list-btn[data-col="${escVal}"]`);
+        if (!btn) return;
+        const sel = window.ptMultiFilters[col] || [];
+        const active = sel.length > 0;
+        btn.textContent = active ? `▾ ${col} (${sel.length})` : `▾ ${col}`;
+        btn.classList.toggle('active', active);
+    }
+
+    // Cerrar el popup al hacer clic fuera, hacer scroll o redimensionar
+    document.addEventListener('click', function (e) {
+        if (!window._ptPopupCol) return;
+        if (e.target.closest('#dt-popup')) return;
+        if (e.target.closest('.dt-list-btn')) return;
+        closeListPopup();
+    });
+    document.addEventListener('scroll', closeListPopup, true);
+    window.addEventListener('resize', closeListPopup);
+
+    function renderDynamicTable(tableId, data, countId, lastUpdateId, lastUpdateVal, campos) {
+        const thead = $(`#${tableId} thead`);
+        
+        if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
+            $(`#${tableId}`).DataTable().destroy();
+        }
+        thead.empty();
+        $(`#${tableId} tbody`).empty();
+        
+        $(`#${countId}`).text(data.length);
+        if(lastUpdateId && lastUpdateVal) {
+            $(`#${lastUpdateId}`).text(`Última actualización: ${lastUpdateVal}`);
+        }
+
+        if (data.length === 0) {
+            $(`#${tableId} tbody`).append('<tr><td class="text-center text-muted">No hay datos. Haz clic en "Recargar Consolidado".</td></tr>');
+            return null;
+        }
+
+        // Orden canónico de columnas (respaldo y llaves faltantes)
+        const finalCols = [
+            'CLAVE', 
+            'DESCRIPCION', 
+            'FAMILIA', 
+            'PRESENTACION', 
+            'UDM', 
+            'ALMACEN', 
+            'ORIGEN', 
+            'UDV', 
+            'QTY ODOO', 
+            'QTY WMS',
+            'QTY ODOO FINAL',
+            'QTY WMS FINAL',
+            'DIFF',
+            'Acción'
+        ];
+
+        // Solo agregar columnas que realmente vengan en la data por seguridad
+        let availableCols = new Set();
+        data.forEach(row => Object.keys(row).forEach(k => availableCols.add(k)));
+
+        // El backend ya ordena las columnas (incluye la posición dinámica de
+        // "Remisionado no Embarcado"); respetamos ese orden usando las llaves
+        // del primer registro, ya que el JSON conserva el orden de inserción.
+        let activeCols;
+        if (data[0] && typeof data[0] === 'object') {
+            activeCols = Object.keys(data[0]);
+        } else {
+            activeCols = finalCols.slice();
+        }
+
+        // Si hay columnas extra por algún motivo (presentes solo en otras filas), ponerlas al final
+        Array.from(availableCols).forEach(c => {
+            if (!activeCols.includes(c)) activeCols.push(c);
+        });
+
+        // Crear fila de encabezados principales
+        let trHead = $('<tr></tr>');
+        activeCols.forEach((col, idx) => {
+            trHead.append(`<th data-col-idx="${idx}">
+                <span class="col-title">${col}</span>
+                <span class="btn-hide-col" title="Ocultar columna" onclick="hideColumn(${idx})">👁️‍🗨️</span>
+                <div class="resizer"></div>
+            </th>`);
+        });
+        thead.append(trHead);
+
+        // Filtros seleccionables: contar valores distintos por columna (sin DIFF)
+        window.ptMultiFilters = {};
+        window.ptMultiOptions = {};
+        closeListPopup();
+        const distinctByCol = {};
+        activeCols.forEach(col => {
+            if (col === 'DIFF') return;
+            const set = new Set();
+            let hasEmpty = false;
+            data.forEach(row => {
+                const v = row[col];
+                if (v === '' || v === null || v === undefined) { hasEmpty = true; return; }
+                set.add(String(v).trim());
+            });
+            distinctByCol[col] = { values: sortDistinct(Array.from(set)), hasEmpty };
+        });
+
+        // Crear fila de inputs para filtros
+        let trFilter = $('<tr></tr>');
+        activeCols.forEach(col => {
+            if (col === 'DIFF') {
+                trFilter.append(`<th><select class="dt-filter-input dt-diff-filter form-select form-select-sm bg-dark text-white border-secondary"><option value="">Todos</option><option value="=">= 0</option><option value=">">&gt; 0</option><option value="<">&lt; 0</option></select></th>`);
+            } else {
+                const d = distinctByCol[col];
+                const isNumeric = d && d.values.length > 0 && d.values.every(v => { const n = Number(v); return v !== '' && !isNaN(n) && isFinite(n); });
+                if (d && !isNumeric && d.values.length > 0 && d.values.length <= 10) {
+                    window.ptMultiOptions[col] = { values: d.values.slice(), hasEmpty: d.hasEmpty };
+                    trFilter.append(`<th><button type="button" class="dt-filter-input dt-list-btn" data-col="${escHtml(col)}">▾ ${escHtml(col)}</button></th>`);
+                } else {
+                    trFilter.append(`<th><input type="text" class="dt-filter-input" placeholder="Buscar..." /></th>`);
+                }
+            }
+        });
+        thead.append(trFilter);
+
+        // Preparar columnas para DataTables
+        // Colores de fondo (base clarito, finales ~3 tonos más fuertes)
+        const bgByCol = {
+            'QTY ODOO': '#E9D9F7',
+            'QTY WMS': '#FFF3CD',
+            'QTY ODOO FINAL': '#6D28D9',
+            'QTY WMS FINAL': '#ffc107'
+        };
+
+        // Columnas de bloques dinámicos: color por dest (config)
+        // y signo +/− (verde/rojo) según la operación Sumar/Restar del bloque
+        const signAndColorByCol = {};
+        (campos || []).forEach(function(c) {
+            signAndColorByCol[c.campo] = {
+                bg: c.dest === 'odoo' ? '#E9D9F7' : '#FFF3CD',
+                sign: {
+                    simbolo: c.op === 'restar' ? '−' : '+',
+                    color: c.op === 'restar' ? '#dc3545' : '#198754'
+                }
+            };
+        });
+
+        const dtColumns = activeCols.map(c => {
+            let colDef = {
+                data: c,
+                defaultContent: ''
+            };
+            if (c === 'ORIGEN') {
+                colDef.render = function(data, type, row) {
+                    if (type === 'display') {
+                        if (data === 'SOLO ODOO') return '<span class="badge" style="background-color: #6f42c1; color: white;">SOLO ODOO</span>';
+                        if (data === 'AMBOS') return '<span class="badge bg-success">AMBOS</span>';
+                        if (data === 'SOLO WMS') return '<span class="badge bg-warning text-dark">SOLO WMS</span>';
+                    }
+                    return data;
+                };
+            } else if (c === 'DIFF') {
+                // Sin color si 0.0; verde si > 0; rojo si < 0
+                colDef.render = function(data, type) {
+                    if (type !== 'display' || data === '' || data === null || data === undefined) return data;
+                    const val = parseFloat(data);
+                    if (val === 0) return data;
+                    const bg = val > 0 ? '#198754' : '#dc3545';
+                    return `<div style="background-color:${bg}; color:#fff; font-weight:700; text-align:center; padding:2px 6px; border-radius:3px;">${data}</div>`;
+                };
+            } else if (c === 'Acción') {
+                // Etiqueta sin color de fondo; ERROR en rojo
+                colDef.render = function(data, type) {
+                    if (type !== 'display' || data === '' || data === null || data === undefined) return data;
+                    if (String(data).trim().toUpperCase() === 'ERROR') {
+                        return '<span class="badge fw-bold" style="background-color:#dc3545; color:#fff; padding:4px 10px;">ERROR</span>';
+                    }
+                    return `<span class="badge bg-light text-dark border fw-bold" style="padding:4px 10px;">${data}</span>`;
+                };
+            } else if (bgByCol[c] || signAndColorByCol[c]) {
+                const textByCol = {
+                    'QTY ODOO FINAL': '#fff',
+                    'QTY WMS FINAL': '#000'
+                };
+                const sc = signAndColorByCol[c];
+                const bg = sc ? sc.bg : bgByCol[c];
+                const sign = sc ? sc.sign : null;
+                // Cualquier FINAL negativo se marca en rojo
+                const isFinal = c === 'QTY ODOO FINAL' || c === 'QTY WMS FINAL';
+                colDef.render = function(data, type) {
+                    if (type !== 'display' || data === '' || data === null || data === undefined) return data;
+                    const val = parseFloat(data);
+                    const neg = isFinal && !isNaN(val) && val < 0;
+                    const bgCell = neg ? '#dc3545' : bg;
+                    const textColor = neg ? '#fff' : (textByCol[c] || '#000');
+                    const signHtml = sign
+                        ? `<span style="color:${sign.color}; font-weight:700; font-size:1.25em; margin-left:6px;">${sign.simbolo}</span>`
+                        : '';
+                    return `<div style="background-color:${bgCell}; color:${textColor}; display:flex; justify-content:space-between; align-items:center; padding:2px 6px; border-radius:3px;"><span style="font-weight:700;">${data}</span>${signHtml}</div>`;
+                };
+            }
+            return colDef;
+        });
+
+        // Inicializar DataTable
+        let table = $(`#${tableId}`).DataTable({
+            data: data,
+            columns: dtColumns,
+            orderCellsTop: true,
+            fixedHeader: true,
+            deferRender: true,
+            stateSave: true,       // Activa el guardado de estado (orden de columnas, etc.)
+            colReorder: true,      // Activa el arrastrar y soltar columnas
+            paging: true,          // Paginación activa: 100 registros por página
+            pageLength: 100,
+            lengthMenu: [[100, 250, 500, -1], ['100', '250', '500', 'Todas']],
+            stateSaveParams: function (settings, data) {
+                // Al restaurar el estado, forzar 100 por página comenzando en la página 1
+                data.length = 100;
+                data.start = 0;
+            },
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json',
+            }
+        });
+
+        // Mover contador y paginación al footer fijo (fuera del área de scroll),
+        // así no se mueven con el scroll de la tabla.
+        // Se reaplica tras cada draw porque con language.url la inicialización es
+        // asíncrona y DataTables crea las features (info/paginate) después del init.
+        $('#cons-footer-info').empty();
+        $('#cons-footer-paging').empty();
+        table.on('init.dt draw.dt', function () {
+            $(`#${tableId}_wrapper .dataTables_info`).appendTo('#cons-footer-info');
+            $(`#${tableId}_wrapper .dataTables_paginate`).appendTo('#cons-footer-paging');
+        });
+
+        // Aplicar los filtros
+        const titleCells = $(`#${tableId} thead tr:eq(0) th`);
+        $(`#${tableId} thead tr:eq(1) th`).each(function (i) {
+            const colName = $('.col-title', titleCells.eq(i)).text().trim();
+            const sel = $('select', this);
+            // Filtro numérico del campo DIFF (select = / > / <)
+            if (sel.is('.dt-diff-filter')) {
+                sel.on('change', function () {
+                    window.ptDiffFilter = this.value;
+                    table.draw();
+                });
+                return;
+            }
+            // Filtro seleccionable (lista en popup)
+            const listBtn = $('.dt-list-btn', this);
+            if (listBtn.length) {
+                listBtn.on('click', function () {
+                    const popup = document.getElementById('dt-popup');
+                    const isOpen = popup && popup.style.display === 'block' && window._ptPopupCol === colName;
+                    if (isOpen) closeListPopup();
+                    else openListPopup(this, colName);
+                });
+                return;
+            }
+            $('input', this).on('keyup change', function () {
+                if (table.column(i).search() !== this.value) {
+                    table.column(i).search(this.value).draw();
+                }
+            });
+        });
+
+        activeCols.forEach(col => { if (window.ptMultiOptions[col]) refreshListButton(col); });
+
+        // Evitar que colReorder/arrastres se disparen desde la fila de filtros
+        // (las columnas solo se mueven arrastrando los títulos de la fila superior)
+        $(`#${tableId} thead tr:eq(1) th`).on('mousedown pointerdown', function (e) {
+            e.stopPropagation();
+        });
+
+        // Configurar Resizing
+        setupResizing();
+
+        // Aplicar UI de columnas ocultas si las hay guardadas en el estado
+        setTimeout(() => refreshHiddenIndicators(table), 100);
+
+        return table;
+    }
+
+    // ==========================================
+    // LÓGICA ESTILO GOOGLE SHEETS
+    // ==========================================
+    
+    function hideColumn(idx) {
+        if (!dtCons) return;
+        event.stopPropagation(); // Evita que colReorder tome el clic
+        let column = dtCons.column(idx);
+        column.visible(false);
+        refreshHiddenIndicators(dtCons);
+    }
+
+    function unhideColumn(idx) {
+        if (!dtCons) return;
+        let column = dtCons.column(idx);
+        column.visible(true);
+        refreshHiddenIndicators(dtCons);
+    }
+
+    function refreshHiddenIndicators(table) {
+        // Remover indicadores previos
+        $('.unhide-indicator').remove();
+        
+        let cols = table.columns()[0];
+        let visibleCols = table.columns(':visible')[0];
+        
+        for (let i = 0; i < cols.length; i++) {
+            if (!table.column(i).visible()) {
+                // Encontrar las cabeceras visibles adyacentes a esta columna oculta
+                // (Usamos el índice absoluto de DataTables para saber dónde colocar los botones)
+                let prevVisibleIdx = -1;
+                for (let j = i - 1; j >= 0; j--) {
+                    if (table.column(j).visible()) { prevVisibleIdx = j; break; }
+                }
+                
+                let nextVisibleIdx = -1;
+                for (let j = i + 1; j < cols.length; j++) {
+                    if (table.column(j).visible()) { nextVisibleIdx = j; break; }
+                }
+
+                if (prevVisibleIdx !== -1) {
+                    let thPrev = table.column(prevVisibleIdx).header();
+                    if (!$(thPrev).find('.unhide-right').length) {
+                        $(thPrev).append(`<div class="unhide-indicator unhide-right" onclick="unhideColumn(${i}); event.stopPropagation();">
+                            <span class="btn-unhide-col">▶</span>
+                        </div>`);
+                    }
+                }
+                
+                if (nextVisibleIdx !== -1) {
+                    let thNext = table.column(nextVisibleIdx).header();
+                    if (!$(thNext).find('.unhide-left').length) {
+                        $(thNext).append(`<div class="unhide-indicator unhide-left" onclick="unhideColumn(${i}); event.stopPropagation();">
+                            <span class="btn-unhide-col">◀</span>
+                        </div>`);
+                    }
+                }
+            }
+        }
+    }
+
+    function setupResizing() {
+        const resizers = document.querySelectorAll('.resizer');
+        let currentResizer;
+
+        for (let resizer of resizers) {
+            resizer.addEventListener('mousedown', function (e) {
+                currentResizer = e.target;
+                let th = currentResizer.parentElement;
+                
+                // Evitar que DataTables ordene la columna o colReorder la mueva
+                e.stopPropagation();
+
+                let startX = e.pageX;
+                let startWidth = th.offsetWidth;
+
+                currentResizer.classList.add('resizing');
+
+                document.addEventListener('mousemove', mouseMoveHandler);
+                document.addEventListener('mouseup', mouseUpHandler);
+
+                function mouseMoveHandler(e) {
+                    let newWidth = startWidth + (e.pageX - startX);
+                    th.style.width = newWidth + 'px';
+                    th.style.minWidth = newWidth + 'px';
+                }
+
+                function mouseUpHandler() {
+                    currentResizer.classList.remove('resizing');
+                    document.removeEventListener('mousemove', mouseMoveHandler);
+                    document.removeEventListener('mouseup', mouseUpHandler);
+                    // Opcional: ajustar cabeceras congeladas (FixedHeader) si se está usando
+                    if(dtCons) { dtCons.columns.adjust(); }
+                }
+            });
+            // Evitar ordenamiento al hacer clic en resizer
+            resizer.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+    }
+
+    // ==========================================
+
+    function setStale(json) {
+        const alertEl = document.getElementById('stale-alert');
+        const listEl = document.getElementById('stale-list');
+        const stale = (json && json.obsoleto || []);
+        if (stale.length > 0) {
+            listEl.innerText = stale.join(', ');
+            alertEl.classList.remove('d-none');
+            alertEl.classList.add('d-flex');
+        } else {
+            alertEl.classList.add('d-none');
+            alertEl.classList.remove('d-flex');
+        }
+    }
+
+    async function loadData() {
+        showLoader();
+        try {
+            const res = await fetch('/api/pt/consolidado_cedis1/data');
+            const json = await res.json();
+            setStale(json);
+            dtCons = renderDynamicTable('table-cons', json.data || [], 'cons-count', 'cons-last-update', json.last_update, json.campos || []);
+        } catch (e) {
+            console.error("Error cargando datos:", e);
+        }
+        hideLoader();
+    }
+
+    async function updateConsolidado() {
+        const btn = document.getElementById('btn-cons-update');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '⚡ Actualizando...';
+        btn.disabled = true;
+        showLoader();
+
+        try {
+            const res = await fetch('/api/pt/consolidado_cedis1/update', {
+                method: 'POST'
+            });
+            const json = await res.json();
+            if (json.success) {
+                alert('✅ ' + json.msg);
+                setStale(json);
+                dtCons = renderDynamicTable('table-cons', json.data || [], 'cons-count', 'cons-last-update', json.last_update, json.campos || []);
+            } else {
+                alert('❌ Error de Actualización: ' + json.msg);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('❌ Error actualizando consolidado.');
+        } finally {
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            hideLoader();
+        }
+    }
+
+    async function reloadConsolidado() {
+        const btn = document.getElementById('btn-cons-reload');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '🔄 Cargando catálogos y cruzando...';
+        btn.disabled = true;
+        showLoader();
+
+        try {
+            const res = await fetch('/api/pt/consolidado_cedis1/reload', {
+                method: 'POST'
+            });
+            const json = await res.json();
+            if (json.success) {
+                alert(json.msg);
+                setStale(json);
+                dtCons = renderDynamicTable('table-cons', json.data || [], 'cons-count', 'cons-last-update', json.last_update, json.campos || []);
+            } else {
+                alert('Error: ' + json.msg);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error cruzando consolidado.');
+        } finally {
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            hideLoader();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+    });
+</script>
+{% endblock %}

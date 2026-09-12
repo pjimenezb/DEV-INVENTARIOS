@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0 fw-bold">⚡ Actualizar WMS — Ajuste de Cantidad (WMS 1 CEDIS 1)</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted">
+                    1. Captura la <b>Ubicación</b> → 2. Extrae sus SKU/lotes con el query
+                    <b>"OBTENER INFO UBICACIÓN RACK"</b> → 3. Escribe la <b>Nueva Cantidad</b> por renglón
+                    (Ubicación + SKU + Lote) → 4. <b>Guardar</b> actualiza en WMS 1 y confirma el cambio.
+                    El <b>Consolidado CEDIS 1</b> quedará con la alerta de recargar.
+                </p>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="inp-ubicacion" placeholder="Nombre de la ubicación (ej. B-01-02-03)" autocomplete="off">
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-warning fw-bold text-dark w-100" onclick="buscarUbicacion()">🔍 Buscar Ubicación</button>
+                    </div>
+                </div>
+                <div id="stage"></div>
+                <div id="confirm-area" class="d-none mt-3">
+                    <hr class="border-secondary">
+                    <h6 class="fw-bold text-success">✅ Confirmación del cambio (extracción re-ejecutada)</h6>
+                    <div id="confirm-body"></div>
+                    <div class="alert alert-info small py-2 mt-2 mb-0">
+                        ⚠️ El <b>Consolidado CEDIS 1</b> mostrará la alerta de "recargar" al entrar a esa pantalla.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentUbicacion = '';
+    let currentUbicacionId = null;
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    async function buscarUbicacion() {
+        const ub = document.getElementById('inp-ubicacion').value.trim();
+        if (!ub) { alert('Indica la ubicación.'); return; }
+        currentUbicacion = ub;
+        document.getElementById('confirm-area').classList.add('d-none');
+        const st = document.getElementById('stage');
+        st.innerHTML = '<div class="text-info small py-2">Consultando WMS 1...</div>';
+        try {
+            const res = await fetch('/api/pt/actualizar_wms/info', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ubicacion: ub })
+            });
+            const json = await res.json();
+            if (!json.success) {
+                st.innerHTML = '<div class="alert alert-danger small py-2 mb-0">❌ ' + escHtml(json.msg) + '</div>';
+                return;
+            }
+            currentUbicacionId = json.ubicacion_id;
+            renderStage(json.rows || [], json.con_lotes);
+        } catch (e) {
+            st.innerHTML = '<div class="alert alert-danger small py-2 mb-0">❌ Error de conexión: ' + escHtml(e.message) + '</div>';
+        }
+    }
+
+    function renderStage(rows, conLotes) {
+        const st = document.getElementById('stage');
+        if ((!rows || rows.length === 0) && !currentUbicacionId) {
+            st.innerHTML = '<div class="alert alert-danger small py-2 mb-0">❌ La ubicación "'
+                + escHtml(currentUbicacion) + '" no existe en la base WMS 1.</div>';
+            return;
+        }
+        let html = '<div class="text-muted small mb-2">Ubicación: <b>' + escHtml(currentUbicacion)
+            + '</b> | ID ubicación: ' + (currentUbicacionId == null ? '—' : escHtml(currentUbicacionId)) + '</div>';
+        html += '<div class="mb-2"><button class="btn btn-danger btn-sm fw-bold" onclick="vaciarUbicacion()">🧹 Vaciar ubicación</button>'
+            + '<span class="text-muted small ms-2">Borra todos los lotes de esta ubicación y deja el Estado en "disponible". Acción irreversible.</span></div>';
+        html += renderRowsTable(rows);
+        html += renderFallback();
+        st.innerHTML = html;
+    }
+
+    function renderRowsTable(rows) {
+        if (!rows || rows.length === 0) {
+            return '<div class="alert alert-warning small py-2 mb-2">La ubicación no tiene lotes cargados. '
+                + 'Usa el bloque de abajo para ingresar un SKU manualmente.</div>';
+        }
+        const cols = ['producto', 'product_name', 'lote', 'cantidad', 'ua', 'uaq', 'fecha_lote', 'uom', 'lote_serie', 'EstadoUbicacion', 'udv'];
+        const head = ['SKU', 'Producto', 'Lote', 'Cantidad', 'UA', 'UAQ', 'Fecha Lote', 'UOM', 'Lote/Serie', 'Estado', 'UDV', 'Nueva Cantidad']
+            .map(c => '<th class="small text-nowrap">' + c + '</th>').join('');
+        const body = rows.map(r => {
+            const tds = cols.map(c => '<td class="small">' + escHtml(r[c] == null ? '' : r[c]) + '</td>').join('');
+            return '<tr>' + tds
+                + '<td><input type="number" min="0" step="1" class="form-control form-control-sm bg-dark text-white border-secondary inp-cant" '
+                + 'data-lote="' + escHtml(r.lote == null ? '' : r.lote) + '" data-sku="' + escHtml(r.producto || '') + '" placeholder="Nueva cantidad"></td></tr>';
+        }).join('');
+        return '<div class="table-responsive mb-2" style="max-height:400px; overflow:auto;">'
+            + '<table class="table table-sm table-dark table-bordered mb-1"><thead class="thead-dark">' + head
+            + '</thead><tbody>' + body + '</tbody></table></div>'
+            + '<div class="d-flex align-items-center gap-2 mb-3">'
+            + '<button class="btn btn-success fw-bold" onclick="guardarCambios()">💾 Guardar cambios</button>'
+            + '<span class="text-muted small">Solo se actualizan los renglones con "Nueva Cantidad" llena.</span></div>';
+    }
+
+    function renderFallback() {
+        return '<div class="card border-warning mb-2">'
+            + '<div class="card-header bg-warning text-dark py-1"><h6 class="mb-0 fw-bold">No encuentro el SKU en la ubicación / ubicación vacía</h6></div>'
+            + '<div class="card-body bg-dark text-white py-2">'
+            + '<div class="row g-2 align-items-end">'
+            + '<div class="col-md-3"><label class="form-label small mb-0">Ingresa SKU (ajuste)</label>'
+            + '<input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="inp-sku" autocomplete="off"></div>'
+            + '<div class="col-md-2"><label class="form-label small mb-0">Nueva Cantidad</label>'
+            + '<input type="number" min="0" step="1" class="form-control form-control-sm bg-dark text-white border-secondary" id="inp-cant-new"></div>'
+            + '<div class="col-md-4"><label class="form-label small mb-0">Descripción (de Odoo)</label>'
+            + '<input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="inp-desc" readonly></div>'
+            + '<div class="col-md-1"><label class="form-label small mb-0">UOM</label>'
+            + '<input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="inp-uom" readonly></div>'
+            + '<div class="col-md-1"><label class="form-label small mb-0">UDV</label>'
+            + '<input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="inp-udv" readonly></div>'
+            + '<div class="col-md-1"><label class="form-label small mb-0">Piezas</label>'
+            + '<input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="inp-pieces" readonly></div>'
+            + '</div>'
+            + '<div class="row g-2 mt-1">'
+            + '<div class="col-md-3"><button class="btn btn-info fw-bold text-dark w-100" onclick="llenarSkuOdoo(this)">📥 Llenar datos con Odoo</button></div>'
+            + '<div class="col-md-3"><button class="btn btn-success fw-bold w-100" onclick="guardarNuevoLote()">➕ Crear lote y Guardar</button></div>'
+            + '<div class="col-md-6 text-muted small align-self-center">Al guardar se crea (INSERT) el lote en la ubicación '
+            + 'con los datos de "Actualización de Datos (Odoo)" y la cantidad capturada.</div>'
+            + '</div></div></div>';
+    }
+
+    async function llenarSkuOdoo(btn) {
+        const sku = document.getElementById('inp-sku').value.trim();
+        if (!sku) { alert('Ingresa el SKU primero.'); return; }
+        btn.disabled = true;
+        btn.textContent = 'Consultando...';
+        try {
+            const res = await fetch('/api/pt/actualizar_wms/producto', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sku })
+            });
+            const json = await res.json();
+            if (!json.success) { alert(json.msg); return; }
+            const p = json.producto || {};
+            document.getElementById('inp-desc').value = p.descripcion || p['Descripción'] || p.name || '';
+            document.getElementById('inp-uom').value = p.udm || p.uom || '';
+            document.getElementById('inp-udv').value = (p.udv == null ? '' : p.udv);
+            document.getElementById('inp-pieces').value = (p.piezas_x_tarima == null ? 0 : p.piezas_x_tarima);
+        } catch (e) {
+            alert('Error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📥 Llenar datos con Odoo';
+        }
+    }
+
+    async function guardarCambios() {
+        const inputs = Array.from(document.querySelectorAll('.inp-cant'));
+        const edits = [];
+        inputs.forEach(inp => {
+            const v = inp.value.trim();
+            if (!v) return;
+            edits.push({ lote: inp.dataset.lote, sku: inp.dataset.sku, nueva_cantidad: v, ubicacion_id: currentUbicacionId });
+        });
+        if (!edits.length) { alert('Escribe al menos una "Nueva Cantidad".'); return; }
+        await submitGuardar(edits);
+    }
+
+    async function guardarNuevoLote() {
+        const sku = document.getElementById('inp-sku').value.trim();
+        const cantidad = document.getElementById('inp-cant-new').value.trim();
+        if (!sku) { alert('Ingresa el SKU.'); return; }
+        if (cantidad === '') { alert('Ingresa la Nueva Cantidad.'); return; }
+        const edits = [{
+            lote: null,
+            sku: sku,
+            nueva_cantidad: cantidad,
+            ubicacion_id: currentUbicacionId,
+            product_name: document.getElementById('inp-desc').value,
+            uom: document.getElementById('inp-uom').value,
+            udv: document.getElementById('inp-udv').value || 0,
+            pieces: document.getElementById('inp-pieces').value || 0
+        }];
+        await submitGuardar(edits);
+    }
+
+    async function vaciarUbicacion() {
+        if (!currentUbicacion || currentUbicacionId == null) {
+            alert('Primero busca una ubicación existente.');
+            return;
+        }
+        if (!confirm('⚠️ ¿Vaciar la ubicación "' + currentUbicacion + '" ?\n'
+            + 'Se ELIMINARÁN TODOS los lotes (ubicacionlotes) de esta ubicación y el Estado se pondrá en "disponible".\n'
+            + 'Esta acción es IRREVERSIBLE.')) return;
+        const st = document.getElementById('stage');
+        const hint = document.createElement('div');
+        hint.className = 'alert alert-warning small py-2 mb-2';
+        hint.textContent = 'Vaciando ubicación en WMS 1...';
+        st.appendChild(hint);
+        try {
+            const res = await fetch('/api/pt/actualizar_wms/vaciar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ubicacion: currentUbicacion })
+            });
+            const json = await res.json();
+            hint.remove();
+            if (!json.success) { alert('❌ ' + json.msg); return; }
+            const ca = document.getElementById('confirm-area');
+            ca.classList.remove('d-none');
+            document.getElementById('confirm-body').innerHTML =
+                '<div class="alert alert-success small py-2 mb-2">' + escHtml(json.msg) + '</div>'
+                + renderConfirmationRows(json.confirmacion || []);
+            const conf = json.confirmacion || [];
+            if (conf.length && conf[0].ubicacion != null) currentUbicacionId = conf[0].ubicacion;
+            renderStage(conf, false);
+        } catch (e) {
+            hint.remove();
+            alert('Error: ' + e.message);
+        }
+    }
+
+    async function submitGuardar(edits) {
+        const st = document.getElementById('stage');
+        const hint = document.createElement('div');
+        hint.className = 'alert alert-info small py-2 mb-2';
+        hint.textContent = 'Aplicando cambios en WMS 1...';
+        st.appendChild(hint);
+        try {
+            const res = await fetch('/api/pt/actualizar_wms/guardar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ubicacion: currentUbicacion, edits })
+            });
+            const json = await res.json();
+            hint.remove();
+            if (!json.success) {
+                alert('❌ ' + json.msg);
+                return;
+            }
+            const seg = (json.resumen || []).map(r =>
+                r.sku + (r.lote ? ' (lote ' + r.lote + ')' : ' (nuevo lote)') + ' → ' + r.afectadas).join(', ');
+            const ca = document.getElementById('confirm-area');
+            ca.classList.remove('d-none');
+            document.getElementById('confirm-body').innerHTML =
+                '<div class="alert alert-success small py-2 mb-2">' + escHtml(json.msg) + '<br>Cambios: ' + escHtml(seg) + '</div>'
+                + renderConfirmationRows(json.confirmacion || []);
+        } catch (e) {
+            hint.remove();
+            alert('Error: ' + e.message);
+        }
+    }
+
+    function renderConfirmationRows(rows) {
+        const cols = ['producto', 'product_name', 'lote', 'cantidad', 'ua', 'uaq', 'fecha_lote', 'uom', 'lote_serie', 'EstadoUbicacion', 'udv'];
+        if (!rows || rows.length === 0) return '<div class="text-muted small">La re-extracción no devolvió filas.</div>';
+        const head = ['SKU', 'Producto', 'Lote', 'Cantidad', 'UA', 'UAQ', 'Fecha Lote', 'UOM', 'Lote/Serie', 'Estado', 'UDV']
+            .map(c => '<th class="small text-nowrap">' + c + '</th>').join('');
+        const body = rows.map(r =>
+            '<tr>' + cols.map(c => '<td class="small">' + escHtml(r[c] == null ? '' : r[c]) + '</td>').join('') + '</tr>').join('');
+        return '<div class="table-responsive" style="max-height:300px; overflow:auto;">'
+            + '<table class="table table-sm table-dark table-bordered mb-0"><thead class="thead-dark">' + head
+            + '</thead><tbody>' + body + '</tbody></table></div>';
+    }
+
+    document.getElementById('inp-ubicacion').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') buscarUbicacion();
+    });
+</script>
+{% endblock %}

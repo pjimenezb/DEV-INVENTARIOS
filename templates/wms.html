@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">📦 Cargas WMS</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-wms-uom" onclick="fillWmsUomEmpaque()">🧮 UoM & Empaque</button>
+                    <button class="btn btn-dark btn-sm fw-bold" id="btn-wms-q2" onclick="fillWmsLocationsQ2()">📍 Llenar Ubicaciones (Query 2)</button>
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-edit-wms" onclick="editSelectedWms()">✏️ Editar Seleccionados</button>
+                    <button class="btn btn-warning btn-sm fw-bold d-none" id="btn-save-wms" onclick="saveEditedWms()">💾 Confirmar y Guardar</button>
+                    <button class="btn btn-secondary btn-sm fw-bold d-none" id="btn-cancel-wms" onclick="cancelEditWms()">❌ Cancelar Edición</button>
+                    <button class="btn btn-info btn-sm fw-bold" id="btn-wms-upload" onclick="uploadWmsFiles()">⬆️ Cargar y Reemplazar Datos WMS</button>
+                    <button class="btn btn-primary btn-sm fw-bold" id="btn-wms-export" onclick="exportWmsExcel()">📊 Exportar Excel</button>
+                    <button class="btn btn-danger btn-sm fw-bold" id="btn-wms-delete" onclick="deleteSelectedWms()">🗑️ Eliminar Seleccionados</button>
+                    <button class="btn btn-success btn-sm fw-bold" id="btn-wms-transfer" onclick="transferToPool('wms')">📤 Pasar a Pool Final</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-info">B1</label>
+                        <input type="file" class="form-control bg-dark text-white border-secondary" id="wms-b1" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-info">CEDIS 4</label>
+                        <input type="file" class="form-control bg-dark text-white border-secondary" id="wms-cedis4" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-info">NAVE 5</label>
+                        <input type="file" class="form-control bg-dark text-white border-secondary" id="wms-nave5" accept=".xlsx,.xls,.csv">
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs" id="wmsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="wms-tab-b1" data-bs-toggle="tab" data-bs-target="#wms-pane-b1" type="button" role="tab">WMS-B1 <span class="badge bg-secondary" id="wms-count-b1">0</span></button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="wms-tab-cedis4" data-bs-toggle="tab" data-bs-target="#wms-pane-cedis4" type="button" role="tab">WMS-CEDIS 4 <span class="badge bg-secondary" id="wms-count-cedis4">0</span></button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="wms-tab-nave5" data-bs-toggle="tab" data-bs-target="#wms-pane-nave5" type="button" role="tab">WMS-NAVE 5 <span class="badge bg-secondary" id="wms-count-nave5">0</span></button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="wms-tab-resumen" data-bs-toggle="tab" data-bs-target="#wms-pane-resumen" type="button" role="tab">Resumen General</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content bg-dark p-3 border border-top-0 border-secondary" id="wmsTabContent">
+                    <div class="tab-pane fade show active table-responsive" id="wms-pane-b1" role="tabpanel">
+                        <h6 class="text-info">Datos WMS-B1</h6>
+                        <table id="table-wms-b1" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade table-responsive" id="wms-pane-cedis4" role="tabpanel">
+                        <h6 class="text-info">Datos WMS-CEDIS 4</h6>
+                        <table id="table-wms-cedis4" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade table-responsive" id="wms-pane-nave5" role="tabpanel">
+                        <h6 class="text-info">Datos WMS-NAVE 5</h6>
+                        <table id="table-wms-nave5" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="tab-pane fade table-responsive" id="wms-pane-resumen" role="tabpanel">
+                        <h6 class="text-info">Resumen General</h6>
+                        <table id="table-wms-resumen" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-2 small text-secondary" id="wms-info">
+                    Sube los 3 archivos (opcional cada uno). Al procesar se vacía la tabla wms_data y se vuelve a cargar (sin duplicados por folio).
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}

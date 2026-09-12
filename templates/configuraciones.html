@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- PostgreSQL Config -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">1. Conexión a PostgreSQL</h5>
+            </div>
+            <div class="card-body">
+                <form id="db-form">
+                    <div class="row mb-2">
+                        <div class="col"><input type="text" class="form-control" id="db-host" placeholder="Host" value="{{ config.db.host }}"></div>
+                        <div class="col"><input type="text" class="form-control" id="db-port" placeholder="Puerto" value="{{ config.db.port }}"></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col"><input type="text" class="form-control" id="db-user" placeholder="Usuario" value="{{ config.db.user }}"></div>
+                        <div class="col"><input type="password" class="form-control" id="db-password" placeholder="Contraseña" value="{{ config.db.password }}"></div>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="db-database" placeholder="Base de Datos" value="{{ config.db.database }}">
+                    </div>
+                    <button type="button" class="btn btn-outline-gold w-100" onclick="testDB()">Probar Conexión y Guardar</button>
+                    <div id="db-alert" class="mt-2 text-center"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUPS Config -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">4. Configuración CUPS (Mac)</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label>Impresora:</label>
+                    <div class="input-group">
+                        <select class="form-select" id="printer-select">
+                            <option value="">Cargando impresoras...</option>
+                        </select>
+                        <button class="btn btn-brand-blue" type="button" onclick="loadPrinters()">↻</button>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col">
+                        <label>Impresiones por bloque:</label>
+                        <input type="number" class="form-control" id="printer-batch" value="{{ config.printer.batch_size }}">
+                    </div>
+                    <div class="col">
+                        <label>Pausa (segundos):</label>
+                        <input type="number" class="form-control" id="printer-sleep" value="{{ config.printer.sleep_time }}">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline-gold w-100 mb-2" onclick="saveCupsConfig()">Guardar Configuración CUPS</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Query Manager -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">2. Gestor de Query Maestro & Validación de Excel</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">Utiliza <code style="color: var(--brand-gold)">{NPs}</code> en tu consulta donde quieras que se inyecten los SKUs (NP) extraídos del Excel. Ej: <code style="color: var(--brand-gold)">... IN ({NPs})</code></p>
+                <textarea id="db-query" class="form-control mb-3" rows="7">{{ config.query }}</textarea>
+                
+                <div class="mb-3">
+                    <label>Archivo Excel para validar Query (Opcional en esta pantalla):</label>
+                    <input type="file" class="form-control bg-dark text-white border-secondary" id="excel-test-file" accept=".xlsx">
+                </div>
+
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-brand-blue" onclick="saveQuery()">Guardar Query</button>
+                    <button class="btn btn-brand-gold" onclick="testQueryDiff()">Ejecutar Cruce (Diff Visual)</button>
+                </div>
+
+                <!-- Resumen por Pestaña -->
+                <div id="summary-container" class="mb-3" style="display:none;">
+                    <h6 class="text-info">Resumen por Pestaña (Excel)</h6>
+                    <div id="summary-badges" class="d-flex flex-wrap gap-2"></div>
+                </div>
+
+                <div id="diff-results" class="table-responsive" style="display:none; max-height: 300px;">
+                    <table class="table table-sm table-dark table-bordered mb-0">
+                        <thead class="sticky-top">
+                            <tr>
+                                <th>NP (Excel)</th>
+                                <th>Pestaña</th>
+                                <th>Estado DB</th>
+                            </tr>
+                        </thead>
+                        <tbody id="diff-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mapeo de Datos -->
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Mapeo de Origen de Datos</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">Selecciona de dónde extraer la información para inyectar en el Marbete final.</p>
+                <form id="mapping-form">
+                    <div class="mb-2">
+                        <label>NP (SKU / Clave):</label>
+                        <select class="form-select form-select-sm" id="map-clave">
+                            <option value="db" {% if config.data_mapping.clave == 'db' %}selected{% endif %}>Base de Datos (Query)</option>
+                            <option value="excel" {% if config.data_mapping.clave == 'excel' %}selected{% endif %}>Excel</option>
+                            <option value="sistema" {% if config.data_mapping.clave == 'sistema' %}selected{% endif %}>Sistema (Vacío)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label>Unidad:</label>
+                        <select class="form-select form-select-sm" id="map-unidad">
+                            <option value="db" {% if config.data_mapping.unidad == 'db' %}selected{% endif %}>Base de Datos (Query)</option>
+                            <option value="excel" {% if config.data_mapping.unidad == 'excel' %}selected{% endif %}>Excel</option>
+                            <option value="sistema" {% if config.data_mapping.unidad == 'sistema' %}selected{% endif %}>Sistema (Vacío)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label>Empaque:</label>
+                        <select class="form-select form-select-sm" id="map-empaque">
+                            <option value="db" {% if config.data_mapping.empaque == 'db' %}selected{% endif %}>Base de Datos (Query)</option>
+                            <option value="excel" {% if config.data_mapping.empaque == 'excel' %}selected{% endif %}>Excel</option>
+                            <option value="sistema" {% if config.data_mapping.empaque == 'sistema' %}selected{% endif %}>Sistema (Vacío)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label>Almacén / Nave:</label>
+                        <select class="form-select form-select-sm" id="map-almacen">
+                            <option value="db" {% if config.data_mapping.almacen == 'db' %}selected{% endif %}>Base de Datos (Query)</option>
+                            <option value="excel" {% if config.data_mapping.almacen == 'excel' %}selected{% endif %}>Excel</option>
+                            <option value="sistema" {% if config.data_mapping.almacen == 'sistema' %}selected{% endif %}>Sistema (Vacío)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label>Cantidad:</label>
+                        <select class="form-select form-select-sm" id="map-cantidad">
+                            <option value="db" {% if config.data_mapping.cantidad == 'db' %}selected{% endif %}>Base de Datos (Query)</option>
+                            <option value="excel" {% if config.data_mapping.cantidad == 'excel' %}selected{% endif %}>Excel</option>
+                            <option value="sistema" {% if config.data_mapping.cantidad == 'sistema' %}selected{% endif %}>Sistema (Vacío)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Contado por:</label>
+                        <select class="form-select form-select-sm" id="map-contado">
+                            <option value="db" {% if config.data_mapping.contado_por == 'db' %}selected{% endif %}>Base de Datos (Query)</option>
+                            <option value="excel" {% if config.data_mapping.contado_por == 'excel' %}selected{% endif %}>Excel</option>
+                            <option value="sistema" {% if config.data_mapping.contado_por == 'sistema' %}selected{% endif %}>Sistema (Vacío)</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-outline-gold w-100" onclick="saveMapping()">Guardar Mapeo</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Coordenadas PDF -->
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">3. Mapeo de Posiciones PDF (Plantilla Base & Repetición)</h5>
+            </div>
+            <div class="card-body">
+                <form id="coords-form">
+                    <h6 class="text-info mb-3">A. Controles Maestros (Repetición)</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-2">
+                            <label title="Posición Y de la Fila 1 (Top)">Base Y Inicial:</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="coord-base-y" value="{{ config.pdf_coords.base_y }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label title="Distancia hacia abajo para Fila 2 y 3">Salto de Fila (Offset Y):</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="coord-global-y" value="{{ config.pdf_coords.global_row_offset_y }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label>X Columna 1 (SKU):</label>
+                            <input type="number" class="form-control" id="coord-c1-x" value="{{ config.pdf_coords.col1.x }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label>X Columna 2:</label>
+                            <input type="number" class="form-control" id="coord-c2-x" value="{{ config.pdf_coords.col2.x }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label title="Distancia desde Col 2 a Col 3">Salto a Col 3 (Offset X):</label>
+                            <input type="number" class="form-control" id="coord-c3-x-offset" value="{{ config.pdf_coords.col3.x_offset_from_col2 }}">
+                        </div>
+                    </div>
+                    
+                    <h6 class="text-info mb-3 mt-4">B. Ajustes Finos Manuales por Fila (Independientes)</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label title="Suma o resta pt a la Fila 1 independientemente">Ajuste Manual Y (Marbete 1):</label>
+                            <input type="number" class="form-control" id="coord-adj-m1" value="{{ config.pdf_coords.ajuste_m1_y }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label title="Suma o resta pt a la Fila 2 independientemente">Ajuste Manual Y (Marbete 2):</label>
+                            <input type="number" class="form-control" id="coord-adj-m2" value="{{ config.pdf_coords.ajuste_m2_y }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label title="Suma o resta pt a la Fila 3 independientemente">Ajuste Manual Y (Marbete 3):</label>
+                            <input type="number" class="form-control" id="coord-adj-m3" value="{{ config.pdf_coords.ajuste_m3_y }}">
+                        </div>
+                    </div>
+                    
+                    <h6 class="text-info mb-3 mt-4">C. Diseño Interno (Aplica a las 3 filas)</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label>Tamaño Fuente General:</label>
+                            <input type="number" class="form-control" id="coord-font" value="{{ config.pdf_coords.font_size }}">
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <!-- Columna de la Tabla de Ajustes -->
+                        <div class="col-lg-6">
+                            <div class="accordion" id="accordionElements" data-bs-theme="dark">
+                                <div class="accordion-item" style="background-color: var(--bg-dark); border-color: var(--border-color);">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseElements" style="background-color: var(--brand-blue); color: var(--brand-gold);">
+                                            Ajustes Detallados Elemento por Elemento
+                                        </button>
+                                    </h2>
+                                    <div id="collapseElements" class="accordion-collapse collapse show" data-bs-parent="#accordionElements">
+                                        <div class="accordion-body">
+                                            <p class="small text-muted mb-3">Los cambios aquí se reflejarán instantáneamente en el previsualizador de la derecha.</p>
+                                            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                                <table class="table table-sm table-dark table-bordered text-center align-middle" style="font-size: 0.85rem;">
+                                                    <thead class="sticky-top">
+                                                        <tr>
+                                                            <th><small>Vis</small></th>
+                                                            <th>Elemento</th>
+                                                            <th>Add X</th>
+                                                            <th>Offset Y</th>
+                                                            <th>W / H</th>
+                                                            <th>+Fuente</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="elements-tbody">
+                                                        <!-- Javascript will populate this -->
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Columna del Previsualizador Visual -->
+                        <div class="col-lg-6">
+                            <div class="card h-100" style="background-color: #f0f0f0; border-color: var(--brand-gold);">
+                                <div class="card-header bg-dark text-white p-2">
+                                    <h6 class="mb-0 text-center"><small>Previsualizador (Hoja Carta Completa)</small></h6>
+                                </div>
+                                <div class="card-body p-0 d-flex justify-content-center" style="overflow-x: auto; overflow-y: auto; max-height: 600px;">
+                                    <div style="transform: scale(0.7); transform-origin: top center; margin-top: 10px; margin-bottom: -150px;">
+                                        <div id="preview-canvas" style="position: relative; width: 612px; height: 792px; background-color: white; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0,0,0,0.2); flex-shrink: 0;">
+                                            <!-- Los elementos se inyectarán aquí vía JS -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer bg-dark p-1 text-center">
+                                    <small class="text-muted" style="font-size: 0.7rem;">Vista proporcional 1:1. Escalada al 70% para encajar en pantalla.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-outline-gold w-100" onclick="saveCoords()">Guardar Configuración de Plantilla</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5 mb-5">
+    <div class="col-md-12">
+        <h4 class="text-warning fw-bold border-bottom border-warning pb-2">--- Módulo 2: Extracción Existencias ---</h4>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark">
+                <h5 class="mb-0 fw-bold">Query de Existencias (Módulo Independiente)</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-2">Este query es independiente del Excel. Se ejecuta tal cual está escrito para generar el reporte secundario.</p>
+                <textarea id="db-query-existencias" class="form-control bg-dark text-white border-secondary mb-3" rows="5">{{ config.query_existencias }}</textarea>
+                <button class="btn btn-info text-dark fw-bold w-100" onclick="saveExistenciasQuery()">Guardar Query de Existencias</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-secondary">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0 fw-bold">Query 3: Pool Data</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-2">Este query se usa para obtener información adicional del Pool Data (historial de marbetes). Se ejecuta según lo escrito aquí.</p>
+                <textarea id="db-query-pool" class="form-control bg-dark text-white border-secondary mb-3" rows="5">{{ config.query_pool }}</textarea>
+                <button class="btn btn-secondary text-white fw-bold w-100" onclick="savePoolQuery()">Guardar Query Pool Data</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark">
+                <h5 class="mb-0 fw-bold">Query EPTS</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-2">Este query es exclusivo del módulo EPTS. Se ejecuta según lo escrito aquí.</p>
+                <textarea id="db-query-epts" class="form-control bg-dark text-white border-secondary mb-3" rows="5">{{ config.query_epts }}</textarea>
+                <button class="btn btn-info text-dark fw-bold w-100" onclick="saveEptsQuery()">Guardar Query EPTS</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0 fw-bold">Query Auditoría 1</h5>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <p class="small text-muted mb-2">Este query se usa para la auditoría de control de calidad del Análisis Final. Se guarda aquí; se ejecuta según lo escrito.</p>
+                <textarea id="db-query-auditoria" class="form-control bg-dark text-white border-secondary mb-3" rows="5">{{ config.query_auditoria_1 }}</textarea>
+                <button class="btn btn-warning text-dark fw-bold w-100" onclick="saveAuditoriaQuery()">Guardar Query Auditoría 1</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bloque de Calibración al Final de la página -->
+<div class="row mt-4 mb-5">
+    <div class="col-md-12 text-center">
+        <h5 class="text-info mb-3">¿Ya guardaste tus cambios? Imprime una prueba para verificar</h5>
+        <button type="button" class="btn btn-brand-gold btn-lg px-5 shadow" id="btn-dummy-print" onclick="testDummyPrint()" disabled>
+            🖨️ Test Dummy (Imprimir Calibración con Etiquetas Rojas)
+        </button>
+    </div>
+</div>
+
+<!-- Pass JSON safely -->
+<script id="elements-data" type="application/json">
+{{ config.pdf_coords.elements | tojson | safe }}
+</script>
+{% endblock %}

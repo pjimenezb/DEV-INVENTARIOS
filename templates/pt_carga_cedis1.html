@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="full-page-loader" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; flex-direction:column; align-items:center; justify-content:center; color:white;">
+    <div class="spinner-border text-info" style="width: 4rem; height: 4rem;" role="status"></div>
+    <h3 class="mt-3">Cargando datos...</h3>
+    <p class="text-muted">Por favor espera, renderizando la tabla.</p>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12 d-flex justify-content-between align-items-center border-bottom border-info pb-2">
+        <h3 class="fw-bold text-info mb-0">Carga Catálogos CEDIS 1</h3>
+    </div>
+</div>
+
+<!-- ================= BLOQUE 1: CEDIS 1 ODOO ================= -->
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 fw-bold d-inline-block">CEDIS 1 (Odoo) <span class="badge bg-dark text-white ms-2" id="odoo-count">0</span></h5>
+                    <span class="badge bg-light text-dark ms-2" id="odoo-last-update">Última actualización: --</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm fw-bold" id="btn-odoo-reload" onclick="reloadOdoo()">🔄 Recargar</button>
+                    <button class="btn btn-warning btn-sm fw-bold text-dark" id="btn-odoo-update" onclick="updateOdoo()">⚡ Actualización de Datos</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white table-responsive">
+                <table id="table-odoo" class="table table-sm table-dark table-striped table-bordered w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                    <thead id="thead-odoo">
+                        <!-- Headers will be generated dynamically -->
+                    </thead>
+                    <tbody id="tbody-odoo">
+                        <!-- Body will be generated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= BLOQUE 2: WMS 1 (CEDIS 1) ================= -->
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 fw-bold d-inline-block">WMS 1 (CEDIS 1) <span class="badge bg-dark text-white ms-2" id="wms-count">0</span></h5>
+                    <span class="badge bg-light text-dark ms-2" id="wms-last-update">Última actualización: --</span>
+                    <span class="badge bg-success ms-2" id="wms-auto-badge" title="Auto-recarga activada (cada 5 min)">⏱️ Auto</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm fw-bold" id="btn-wms-reload" onclick="reloadWms()">🔄 Recargar</button>
+                    <button class="btn btn-info btn-sm fw-bold text-dark" id="btn-wms-update" onclick="updateWms()">⚡ Actualización de Datos</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white table-responsive">
+                <table id="table-wms" class="table table-sm table-dark table-striped table-bordered w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                    <thead id="thead-wms">
+                        <!-- Headers will be generated dynamically -->
+                    </thead>
+                    <tbody id="tbody-wms">
+                        <!-- Body will be generated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<style>
+    .dt-filter-input {
+        width: 100%;
+        padding: 3px;
+        box-sizing: border-box;
+        font-size: 0.8rem;
+        background-color: #212529;
+        color: white;
+        border: 1px solid #495057;
+        border-radius: 4px;
+    }
+    .dt-filter-input::placeholder {
+        color: #adb5bd;
+    }
+</style>
+
+<script>
+    let dtOdoo = null;
+    let dtWms = null;
+
+    function showLoader() {
+        document.getElementById('full-page-loader').style.display = 'flex';
+    }
+
+    function hideLoader() {
+        document.getElementById('full-page-loader').style.display = 'none';
+    }
+
+    function renderDynamicTable(tableId, data, countId, lastUpdateId, lastUpdateVal) {
+        const thead = $(`#${tableId} thead`);
+        
+        if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
+            $(`#${tableId}`).DataTable().destroy();
+        }
+        thead.empty();
+        $(`#${tableId} tbody`).empty();
+        
+        $(`#${countId}`).text(data.length);
+        if(lastUpdateId && lastUpdateVal) {
+            $(`#${lastUpdateId}`).text(`Última actualización: ${lastUpdateVal}`);
+        }
+
+        if (data.length === 0) {
+            $(`#${tableId} tbody`).append('<tr><td class="text-center text-muted">No hay datos. Haz clic en "Recargar".</td></tr>');
+            return null;
+        }
+
+        // Obtener todas las columnas únicas de los datos
+        let colsSet = new Set();
+        data.forEach(row => Object.keys(row).forEach(k => colsSet.add(k)));
+        const cols = Array.from(colsSet);
+
+        // Crear fila de encabezados principales
+        let trHead = $('<tr></tr>');
+        cols.forEach(col => {
+            trHead.append(`<th>${col}</th>`);
+        });
+        thead.append(trHead);
+
+        // Crear fila de inputs para filtros
+        let trFilter = $('<tr></tr>');
+        cols.forEach(col => {
+            trFilter.append(`<th><input type="text" class="dt-filter-input" placeholder="Buscar..." /></th>`);
+        });
+        thead.append(trFilter);
+
+        // Preparar columnas para DataTables
+        const dtColumns = cols.map(c => ({
+            data: c,
+            defaultContent: '' // Evita errores si falta una columna en un JSON
+        }));
+
+        // Inicializar DataTable optimizado con data array y deferRender
+        let table = $(`#${tableId}`).DataTable({
+            data: data,
+            columns: dtColumns,
+            orderCellsTop: true,
+            fixedHeader: true,
+            deferRender: true, // CLAVE PARA OPTIMIZAR MILES DE FILAS
+            pageLength: 50,
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json',
+            }
+        });
+
+        // Aplicar los filtros
+        $(`#${tableId} thead tr:eq(1) th`).each(function (i) {
+            $('input', this).on('keyup change', function () {
+                if (table.column(i).search() !== this.value) {
+                    table.column(i).search(this.value).draw();
+                }
+            });
+        });
+
+        return table;
+    }
+
+    async function loadData() {
+        showLoader();
+        // Cargar Odoo
+        try {
+            const resOdoo = await fetch('/api/pt/carga_cedis1/odoo/data');
+            const jsonOdoo = await resOdoo.json();
+            dtOdoo = renderDynamicTable('table-odoo', jsonOdoo.data || [], 'odoo-count', 'odoo-last-update', jsonOdoo.last_update);
+        } catch (e) {
+            console.error("Error cargando datos Odoo:", e);
+        }
+
+        // Cargar WMS
+        try {
+            const resWms = await fetch('/api/pt/carga_cedis1/wms/data');
+            const jsonWms = await resWms.json();
+            dtWms = renderDynamicTable('table-wms', jsonWms.data || [], 'wms-count', 'wms-last-update', jsonWms.last_update);
+        } catch (e) {
+            console.error("Error cargando datos WMS:", e);
+        }
+        hideLoader();
+    }
+
+    async function reloadOdoo() {
+        const btn = document.getElementById('btn-odoo-reload');
+        btn.disabled = true;
+        showLoader();
+        try {
+            const res = await fetch('/api/pt/carga_cedis1/odoo/reload', { method: 'POST' });
+            const json = await res.json();
+            if (json.success) {
+                dtOdoo = renderDynamicTable('table-odoo', json.data || [], 'odoo-count', 'odoo-last-update', json.last_update);
+            } else {
+                alert('Error Odoo: ' + json.msg);
+            }
+        } catch (e) {
+            alert('Error al recargar Odoo: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            hideLoader();
+        }
+    }
+
+    async function reloadWms(isAuto = false) {
+        const btn = document.getElementById('btn-wms-reload');
+        if(!isAuto) {
+            btn.disabled = true;
+            showLoader();
+        } else {
+            document.getElementById('wms-auto-badge').classList.replace('bg-success', 'bg-warning');
+            document.getElementById('wms-auto-badge').innerText = '⏱️ Recargando...';
+        }
+
+        try {
+            const res = await fetch('/api/pt/carga_cedis1/wms/reload', { method: 'POST' });
+            const json = await res.json();
+            if (json.success) {
+                dtWms = renderDynamicTable('table-wms', json.data || [], 'wms-count', 'wms-last-update', json.last_update);
+            } else {
+                if(!isAuto) alert('Error WMS: ' + json.msg);
+                else console.error('Error WMS Auto-Reload:', json.msg);
+            }
+        } catch (e) {
+            if(!isAuto) alert('Error al recargar WMS: ' + e.message);
+            else console.error('Error al auto-recargar WMS:', e.message);
+        } finally {
+            if(!isAuto) {
+                btn.disabled = false;
+                hideLoader();
+            } else {
+                document.getElementById('wms-auto-badge').classList.replace('bg-warning', 'bg-success');
+                document.getElementById('wms-auto-badge').innerText = '⏱️ Auto';
+            }
+        }
+    }
+
+    async function updateOdoo() {
+        const btn = document.getElementById('btn-odoo-update');
+        btn.disabled = true;
+        showLoader();
+        try {
+            const res = await fetch('/api/pt/carga_cedis1/odoo/update', { method: 'POST' });
+            const json = await res.json();
+            if (json.success) {
+                // Keep the existing last_update since this is just an enrichment, 
+                // or we could fetch it again. For now just passing empty to not overwrite.
+                dtOdoo = renderDynamicTable('table-odoo', json.data || [], 'odoo-count');
+                alert('✅ ' + json.msg);
+            } else {
+                alert('❌ Error de Actualización Odoo: ' + json.msg);
+            }
+        } catch (e) {
+            alert('❌ Error al actualizar Odoo: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            hideLoader();
+        }
+    }
+
+    async function updateWms() {
+        const btn = document.getElementById('btn-wms-update');
+        btn.disabled = true;
+        showLoader();
+        try {
+            const res = await fetch('/api/pt/carga_cedis1/wms/update', { method: 'POST' });
+            const json = await res.json();
+            if (json.success) {
+                dtWms = renderDynamicTable('table-wms', json.data || [], 'wms-count');
+                alert('✅ ' + json.msg);
+            } else {
+                alert('❌ Error de Actualización WMS: ' + json.msg);
+            }
+        } catch (e) {
+            alert('❌ Error al actualizar WMS: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            hideLoader();
+        }
+    }
+
+    $(document).ready(function() {
+        loadData();
+        
+        // Timer de auto-recarga para WMS (cada 5 minutos = 300000 ms)
+        setInterval(() => {
+            reloadWms(true); // true = isAuto
+        }, 300000);
+    });
+</script>
+{% endblock %}

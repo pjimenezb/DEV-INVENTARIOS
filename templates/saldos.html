@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">🧮 Cargas Saldos</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-saldos-uom" onclick="fillSaldosUomEmpaque()">🧮 UoM & Empaque</button>
+                    <button class="btn btn-dark btn-sm fw-bold" id="btn-saldos-q2" onclick="fillSaldosLocationsQ2()">📍 Llenar Ubicaciones (Query 2)</button>
+                    <button class="btn btn-warning btn-sm fw-bold" id="btn-edit-saldos" onclick="editSelectedSaldos()">✏️ Editar Seleccionados</button>
+                    <button class="btn btn-warning btn-sm fw-bold d-none" id="btn-save-saldos" onclick="saveEditedSaldos()">💾 Confirmar y Guardar</button>
+                    <button class="btn btn-secondary btn-sm fw-bold d-none" id="btn-cancel-saldos" onclick="cancelEditSaldos()">❌ Cancelar Edición</button>
+                    <button class="btn btn-info btn-sm fw-bold" id="btn-saldos-upload" onclick="uploadSaldosFiles()">⬆️ Cargar y Reemplazar Datos Saldos</button>
+                    <button class="btn btn-primary btn-sm fw-bold" id="btn-saldos-export" onclick="exportSaldosExcel()">📊 Exportar Excel</button>
+                    <button class="btn btn-danger btn-sm fw-bold" id="btn-saldos-delete" onclick="deleteSelectedSaldos()">🗑️ Eliminar Seleccionados</button>
+                    <button class="btn btn-success btn-sm fw-bold" id="btn-saldos-transfer" onclick="transferToPool('saldos')">📤 Pasar a Pool Final</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-warning">Archivo de Saldos</label>
+                        <input type="file" class="form-control bg-dark text-white border-secondary" id="saldos-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button class="btn btn-info w-100 fw-bold" onclick="uploadSaldosFiles()">⬆️ Cargar y Reemplazar Datos Saldos</button>
+                    </div>
+                </div>
+
+                <h6 class="text-warning">Datos Saldos</h6>
+                <div class="table-responsive">
+                    <table id="table-saldos" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="mt-2 small text-secondary" id="saldos-info">
+                    Carga el archivo de Saldos. Al procesar se vacía la tabla saldos_data y se vuelve a cargar (pestaña "Saldos").
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}

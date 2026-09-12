@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Marbetes Fiscales</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Marbetes Fiscales</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <!-- ===== MODO MATERIA PRIMA (MP) ===== -->
+                <ul class="navbar-nav" id="nav-mp">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'configuraciones' %}active{% endif %}" href="/inventario_mp">Configuraciones</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'ejecuciones' %}active{% endif %}" href="/ejecuciones">Ejecuciones</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'pool_final_view' %}active{% endif %}" href="/pool_final">Pool Final</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'matriz_view' %}active{% endif %}" href="/matriz">Matriz Ubicaciones</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'wms_view' %}active{% endif %}" href="/wms">Cargas WMS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'saldos_view' %}active{% endif %}" href="/saldos">Saldos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'etqmang_view' %}active{% endif %}" href="/etqmang">Etiquetas y Mangas</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'epts_view' %}active{% endif %}" href="/epts">EPTS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'analisis_final_view' %}active{% endif %}" href="/analisis_final">Análisis Final</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'auditoria_folios_view' %}active{% endif %}" href="/auditoria_folios">Auditoría de Folios</a>
+                    </li>
+                </ul>
+
+                <!-- ===== MODO PRODUCTO TERMINADO (PT) ===== -->
+                <ul class="navbar-nav" id="nav-pt" style="display:none;">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'configuraciones_pt' %}active{% endif %}" href="/inventario_pt">Configuraciones</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'pt_carga_cedis1_view' %}active{% endif %}" href="/pt/carga_cedis1">Carga Catálogos CEDIS 1</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'pt_carga_archivos_wms1_view' %}active{% endif %}" href="/pt/carga_archivos_wms1">Carga archivos WMS 1</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'pt_actualizar_wms_view' %}active{% endif %}" href="/pt/actualizar_wms">Actualizar WMS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'pt_consolidado_cedis1_view' %}active{% endif %}" href="/pt/consolidado_cedis1">Consolidado CEDIS 1</a>
+                    </li>
+                </ul>
+
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <button class="btn btn-outline-light btn-sm" onclick="cambiarModulo()">⇄ Cambiar Módulo</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=20260910pt"></script>
+    {% block scripts %}{% endblock %}
+
+    <script>
+        // Determina el modo de inventario desde localStorage y ajusta el navbar/redirección.
+        (function() {
+            const modo = localStorage.getItem('modo_inventario') || '';
+            const navMp = document.getElementById('nav-mp');
+            const navPt = document.getElementById('nav-pt');
+            if (modo === 'mp') {
+                navMp.style.display = '';
+                navPt.style.display = 'none';
+            } else if (modo === 'pt') {
+                navMp.style.display = 'none';
+                navPt.style.display = '';
+            }
+            // Si el usuario entra directo a una ruta MP sin modo PT, lo redirige a la selección.
+            const needsMode = {{ 'true' if request.endpoint not in ('seleccion_inicio', 'configuraciones', 'configuraciones_pt') else 'false' }};
+            if (needsMode && !modo) {
+                window.location.href = '/';
+            }
+        })();
+        function cambiarModulo() {
+            localStorage.removeItem('modo_inventario');
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

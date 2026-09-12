@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-warning">
+                        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">Pool Final (Historial Persistente)</h5>
+                <div>
+                    <button class="btn btn-success btn-sm me-2 fw-bold" onclick="exportPoolExcel()">📊 Exportar Excel</button>
+                    <button class="btn btn-info btn-sm me-2 fw-bold" onclick="exportPoolCSV()">CVS Pool Data</button>
+                    <button class="btn btn-light btn-sm me-2 fw-bold" onclick="updatePoolDescriptions()">📝 Actualizar Descripciones</button>
+                    <button class="btn btn-info btn-sm me-2 fw-bold" onclick="fillLocationPool()">📍 Llenar Ubicación</button>
+                    <button class="btn btn-primary btn-sm me-2 fw-bold" onclick="fillLocationPoolQ2()">📍 Llenar Varias Ubicaciones (Query 2)</button>
+                    <button class="btn btn-warning btn-sm me-2 fw-bold" onclick="markAuditAll()">✅ Marcar Auditoría</button>
+                    <button class="btn btn-warning btn-sm me-2 fw-bold" id="btn-edit-pool" onclick="editSelectedPool()">✏️ Editar Seleccionados</button>
+                    <button class="btn btn-warning btn-sm me-2 fw-bold d-none" id="btn-save-pool" onclick="saveEditedPool()">💾 Confirmar y Guardar</button>
+                    <button class="btn btn-secondary btn-sm me-2 fw-bold d-none" id="btn-cancel-pool" onclick="cancelEditPool()">❌ Cancelar Edición</button>
+                    <button class="btn btn-dark btn-sm me-2" onclick="createPoolBackup()">💾 Hacer Respaldo</button>
+                    <button class="btn btn-dark btn-sm me-2" onclick="restorePoolBackup()">↩️ Rollback (Deshacer Eliminación)</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSelectedPool()">🗑️ Eliminar Seleccionados</button>
+                </div>
+            </div>
+            <div class="card-body bg-dark text-white table-responsive">
+                <p class="small text-muted mb-3">Aquí se almacena el registro histórico permanente de todos los marbetes impresos que han sido traspasados desde el módulo de Ejecuciones.</p>
+                
+                <!-- Filtros -->
+                <div class="row mb-3">
+                    <div class="col-md-12 mb-2">
+                        <label>🔍 Autobúsqueda por NP:</label>
+                        <input type="text" id="filter-np" class="form-control bg-dark text-white border-secondary" placeholder="Escribe para buscar coincidencias en el NP..." oninput="applyPoolFilters()">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12 mb-2">
+                        <label>🔍 Autobúsqueda por Descripción:</label>
+                        <input type="text" id="filter-desc" class="form-control bg-dark text-white border-secondary" placeholder="Escribe para buscar coincidencias en la descripción..." oninput="applyPoolFilters()">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label>Filtrar por Pestaña:</label>
+                        <select id="filter-sheet" class="form-select bg-dark text-white border-secondary" onchange="applyPoolFilters()">
+                            <option value="">-- Mostrar Todas --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Filtrar por Almacén:</label>
+                        <select id="filter-almacen" class="form-select bg-dark text-white border-secondary" onchange="applyPoolFilters()">
+                            <option value="">-- Mostrar Todas --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Filtrar por Empaque:</label>
+                        <select id="filter-empaque" class="form-select bg-dark text-white border-secondary" onchange="applyPoolFilters()">
+                            <option value="">-- Mostrar Todos --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Filtrar por Ubicación:</label>
+                        <select id="filter-ubicacion" class="form-select bg-dark text-white border-secondary" onchange="applyPoolFilters()">
+                            <option value="">-- Mostrar Todas --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label>Varias Ubicaciones:</label>
+                        <select id="filter-varias" class="form-select bg-dark text-white border-secondary" onchange="applyPoolFilters()">
+                            <option value="">-- Todas --</option>
+                            <option value="1">Sí (Varias)</option>
+                            <option value="0">No (Única)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-9 small text-muted d-flex align-items-end pb-1">
+                        Productos detectados en más de una ubicación (para reportar no conformidad).
+                    </div>
+                </div>
+
+                <table id="table-pool-final" class="table table-sm table-dark table-striped w-100" style="font-size: 0.85rem; white-space: nowrap;">
+                    <thead><tr>
+                        <th class="text-center" style="width: 40px;"><input type="checkbox" id="chk-all-pool" onclick="toggleAllPool(this)"></th>
+                        <th>Folio Físico</th><th>NP</th><th>Pestaña</th><th>Descripción</th><th>Unidad</th><th>Empaque</th><th>Almacén</th><th>Ubicación</th><th>Varias</th><th>Layout</th><th>Cantidad</th><th>Contado Por</th><th>Auditoría</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}
